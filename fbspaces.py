@@ -62,6 +62,11 @@ def readFBspace(f, prefix):
             break
     return res
 
+def FBconvert(w, filename):
+    mystr=''.join(str.split(readFBspace(name=filename, w=w)))
+    newstr=re.split(":=|\[|\]",mystr)[4]
+    dev = [elem+")" if elem[-1]!=")" else elem for elem in newstr.split("),") if elem]
+    return [SB_to_dict(el) for el in dev]
 
 def get_perm_fspace(fbspacedir, w):
     assert os.path.isfile(f'{fbspacedir}/frontbackspaces/frontspace')
