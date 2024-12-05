@@ -1,0 +1,23 @@
+[project]
+name = "AIAmplitudes"
+version = "0.0.1"
+authors = [
+  { name="Garrett Merz", email="garrett.merz@wisc.edu" },
+  { name="Francois Charton", email="fcharton@meta.com" },
+  { name="Tianji Cai", email="tianjiresearch@gmail.com" },
+  { name="Kyle Cranmer", email="kscranmer@wisc.edu" },
+  { name="Matthias Wilhelm", email="mailmwilhelm@imada.sdu.dk" },
+  { name="Lance Dixon", email="lance@slac.stanford.edu" },
+]
+description = "A library of common utils for the AI Amplitudes project"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/AIAmplitudes"
