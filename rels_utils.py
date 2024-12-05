@@ -13,141 +13,10 @@ import copy
 ##############################################################################################
 # AUXILIARY FUNCTIONS #
 ##############################################################################################
-
-########################################################################################################################
-class fastRandomSampler(object):
-    def __init__(self, init_elem, countdict={}, inplace=False):
-        # this sampling struct works for dicts and sets, so just flag which it is
-        if (not isinstance(init_elem, dict) and not isinstance(init_elem, set)): raise TypeError
-        self.is_dict = isinstance(init_elem, dict)
-
-        #the object to sample from. if inplace, edits the original dict,
-        # otherwise, edits a copy. inplace is faster, but more dangerous.
-        if inplace: self.mystruct = init_elem
-        else: self.mystruct = init_elem.copy()
-
-        # optional counter, if items have multiplicity. Used for scramble
-        self.countdict = countdict
-
-        # Create the key-to-int maps from the dictionary
-        if len(self.mystruct) == 0:
-            self.keylist, self.key_to_int = [],{}
-        else:
-
-            #self.keylist =
-            self.keylist, self.key_to_int = [([*tup] if i == 0 else dict(tup))
-                                                           for i,tup in enumerate(zip(*((k, (k, v))
-                                                           for v, k in enumerate(self.mystruct))))]
-
-    def __getitem__(self, item):
-        if item in self.mystruct:
-            return (self.mystruct[item] if self.is_dict else item)
-        else:
-            return None
-
-    def __contains__(self, item):
-        return item in self.mystruct
-
-    def __len__(self):
-        return len(self.mystruct)
-
-    def __repr__(self):
-        return str(self.mystruct)
-
-    def __str__(self):
-        return str(self.mystruct)
-
-    def copy(self):
-        return copy.copy(self)
-
-    def keys(self):
-        return self.mystruct.keys() if self.is_dict else self.mystruct
-
-    def items(self):
-        return self.mystruct.items() if self.is_dict else self.mystruct
-
-    def values(self):
-        return self.mystruct.values() if self.is_dict else None
-
-    def add(self, key, value=None):  # O(1)
-        # Add key-value pair (no extra work needed for simply changing the value)
-        new_int = len(self.mystruct)
-        if self.is_dict:
-            self.mystruct[key] = value
-        else:
-            self.mystruct.add(key)
-
-        self.key_to_int[key] = new_int
-        self.keylist.append(key)
-
-    def popitem(self, key):  # O(1)
-
-        position = self.key_to_int.pop(key)
-        last_item = self.keylist.pop()
-
-        if position != len(self.keylist):
-            self.keylist[position] = last_item
-            self.key_to_int[last_item] = position
-        if self.is_dict:
-            return key, self.mystruct.pop(key)
-        else:
-            self.mystruct.remove(key)
-            return key
-
-    def remove(self, key):# O(1)
-        if key not in self.key_to_int: return
-        self.popitem(key)
-        return
-
-    def random_key(self):  # O(1)
-    # Select a random key from the dictionary using the int_to_key map
-        return self.keylist[int(len(self.mystruct) * random.random())]
-
-
-    def remove_random(self):  # O(1)
-        # Randomly remove a key from the dictionary via the bidirectional maps
-        key = self.random_key()
-        self.remove(key)
-
-    def pop_random(self):  # O(1)
-        # Randomly pop a key from the dictionary via the bidirectional maps
-        try:
-            key = self.random_key()
-            if not self.countdict:
-                # if we're not counting, just pop it
-                return self.popitem(key)
-            else:
-                # countdict lets us pop keys multiple times (if keys have multiplicity)
-                if self.countdict[key] == 1:
-                    # If we're on the last time, pop it
-                    self.countdict.pop(key, None)
-                    return self.popitem(key)
-                else:
-                    # otherwise, decrement its counter- we've seen it
-                    self.countdict[key] -= 1
-                    if self.is_dict:
-                        return key, self.mystruct[key]
-                    else:
-                        return key
-        except IndexError:
-            print("Error, symbol is exhausted!")
-
-    def pop_random_gen(self, num_to_pop):  # O(1)
-        for i in range(num_to_pop):
-            yield self.pop_random()
-
-    def pop_inst_gen(self, subdict_size, num_to_gen):
-        # Randomly pop instances from the symb
-        for i in range(num_to_gen):
-            if self.is_dict:
-                yield {k: v for k, v in self.pop_random_gen(subdict_size)}
-            else:
-                yield {k for k in self.pop_random_gen(subdict_size)}
-
-
 # fixed alphabet
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f']
 quad_prefix = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+steinmanns={'a':'d', 'b':'e', 'c':'f', 'd':'aef', 'e':'bdf', 'f':'cde'}
 
 rels_to_generate= {"first": [[500]*3,[0]*3],
                             "double": [[500]*3,[0]*3],
@@ -162,12 +31,16 @@ rels_to_generate_compact_default = {'first': [[500]*3, [0]*3],
                                     'triple': [[500], [1]],
                                     'integral': [[500]*3, [1]*3]}
 
+def sumdict(k,d1,d2):
+    out={}
+    for k in d1 | d2:
+        if (k in d1) and (k in d2): val = d1[k]+d2[k]
+        elif (k in d1): val = d1[k]
+        elif (k in d2): val = d2[k]
+        else: val = 0
+    out[k]=val
+    return out
 
-
-###################################################################################
-########################################################################################################################
-#Auxiliary Functions
-#######################################################################################################################
 def find_all(a_str, sub):
     start = 0
     while True:
@@ -199,6 +72,52 @@ def update_counter(word,only_check_nonzeros,symb,min_overlap,count):
             if word in symb:
                 count += 1
     return count
+
+def is_triv_zero(word):
+    for i,letter in enumerate(word):
+        if i == len(word)-1: continue
+        else:
+            if word[i+1] in steinmanns[letter]: return True
+    return False
+
+def is_ok_phi2(word):
+    if word[0] in 'def': return False
+    elif word[-1] in 'abc': return False
+    elif is_triv_zero(word): return False
+    else: return True
+
+def is_ok_phi3(word):
+    if word[0] in 'def': return False
+    elif word[-1] in 'def': return False
+    elif is_triv_zero(word): return False
+    else: return True
+
+def is_ok(word):
+    return True
+
+def count_ones(binlist):
+    i=0
+    for elem in binlist:
+        if elem == 1: i += 1
+    return i
+
+def count_zeros(binlist):
+    i=0
+    for elem in binlist:
+        if elem == 0: i += 1
+    return i
+
+def kbits(totsum, str_len):
+    for bits in itertools.combinations(range(str_len), totsum):
+        s = [0] * str_len
+        for bit in bits:
+            s[bit] = 1
+        yield s
+
+###################################################################################
+########################################################################################################################
+#Auxiliary Functions
+#######################################################################################################################
 
 def read_rel_info(rels_to_generate, make_zero_rels=False):
     '''
@@ -293,7 +212,6 @@ def gen_first(letter):
     else: raise ValueError
     return mylist[int(len(mylist) * random.random())]
 
-
 def gen_last(letter):
     #given the second to last letter, generate a valid last letter
     if letter == 'a':
@@ -311,6 +229,7 @@ def gen_last(letter):
     else: raise ValueError
     letter = mylist[int(len(mylist) * random.random())]
     return letter
+
 def gen_valid_substr(to_gen,input=None,suffix=False):
     #generate a valid substring. If input is given, build a string that is compatible with it.
     #If 'suffix', gen a valid substring that can be reversed and prepended to input
@@ -361,7 +280,6 @@ def new_nontriv_key(loops, format):
         last = gen_last(key[-1])
         return ''.join(key+last)
 
-
 def generate_random_word(word_length, format='full', seed=0):
     '''
     Generate a random word with a specific length.
@@ -407,7 +325,6 @@ def get_coeff_from_word(word, symb):
     if word in symb:
         return symb[word]
     return 0
-
 
 def get_word_from_coeff(coeff, symb):
     '''
@@ -810,6 +727,7 @@ initial_entries_rel_table = [{'ad': 1},
                            {'bba': 1,'bbc': 1,'ccb': 1,'aab': -1,'abb': -1},
                            {'abc': 1,'aac': 1,'bbc': 1,'cca': 1,'ccb': 1},
                            {'aac': 1,'cca': 1,'bbc': -1,'ccb': -1,'afa': 1 / 2,'aaf': -1 / 2,'bbf': 1 / 2,'afb': -1 / 2}]
+
 def trivial_zero_rel_table(format="full"):
 
     myrel_table = first_entry_rel_table
@@ -1527,13 +1445,3 @@ def replace_trivial0_terms(symb, return_symb=False):
 
     if return_symb:
         return symb_updated
-
-def sumdict(k,d1,d2):
-    out={}
-    for k in d1 | d2:
-        if (k in d1) and (k in d2): val = d1[k]+d2[k]
-        elif (k in d1): val = d1[k]
-        elif (k in d2): val = d2[k]
-        else: val = 0
-    out[k]=val
-    return out

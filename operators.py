@@ -1,6 +1,6 @@
 
 from itertools import permutations, islice
-from src.generators.rels_utils_refactored import find_all,count_appearances
+from rels_utils import find_all
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f']
 dihedral_table = [list(permutations(alphabet[:3]))[i] + list(permutations(alphabet[3:]))[i] for i in
@@ -149,7 +149,6 @@ def get_nth_occ_right_slotlookup(key, substr, n):
     #*_, last= islice(allapps, n)
     return last
 
-
 def get_first_nth_appearance(key, substr, n):
     if n < 1: raise ValueError
     # get the nth occurrence of a substring (assumes it appears >= n times)
@@ -158,7 +157,6 @@ def get_first_nth_appearance(key, substr, n):
     first = allapps[n - 1]
     return first
 
-
 def get_last_nth_appearance(key, substr, n):
     if n < 1: raise ValueError
     # get the nth occurrence from the right of a substring (assumes it appears >= n times)
@@ -166,7 +164,6 @@ def get_last_nth_appearance(key, substr, n):
     if n > len(allapps): return None
     last = allapps[-n]
     return last
-
 
 def get_samerun_slots(sent, seedslot):
     thischar = sent[seedslot]
@@ -195,7 +192,6 @@ def get_runbound_slots(sent, seedslot):
     # get the slots that bookend the given "run".
     run = get_samerun_slots(sent, seedslot)
     return [run[0] - 1, run[-1] + 1]
-
 
 def get_rundict(sent):
     thischar = 0
