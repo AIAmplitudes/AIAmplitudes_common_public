@@ -18,6 +18,28 @@ alphabet = ['a', 'b', 'c', 'd', 'e', 'f']
 quad_prefix = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 steinmanns={'a':'d', 'b':'e', 'c':'f', 'd':'aef', 'e':'bdf', 'f':'cde'}
 
+# triple-adjacency relation: plus dihedral symmetry; any slot
+# integrability relations: any slot
+dihedral_table = [list(permutations(alphabet[:3]))[i]+list(permutations(alphabet[3:]))[i]
+                  for i in range(len(alphabet))]
+triple_table = [{'aab': 1, 'abb': 1, 'acb': 1}]
+pair_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
+                              {'ca': 1, 'cb': 1, 'ac': -1, 'bc': -1},  # eq 3.7
+                              {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
+                               'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,'bc': -2},
+                                 {'ad':1},{'da':1},{'df':1}]
+
+def get_image(word, rownum):
+    return ''.join([dihedral_table[rownum][idx] for idx in [alphabet.index(l) for l in [*word]]])
+
+def table_to_rels(table):
+    tr=[{get_image(k,ind):v for k,v in rel.items()} for ind in range(len(alphabet)) for rel in table]
+    return [i for n, i in enumerate(tr) if not
+               any(set(sorted(i.keys())) == set(sorted(k.keys())) for k in tr[n + 1:])]
+pair_rels=table_to_rels(pair_table)
+triple_rels=table_to_rels(triple_table)
+
+
 rels_to_generate= {"first": [[500]*3,[0]*3],
                             "double": [[500]*3,[0]*3],
                             "triple": [[500],[1]],

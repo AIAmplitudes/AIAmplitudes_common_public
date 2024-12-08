@@ -3,7 +3,8 @@ import datetime
 
 from scipy.special import binom
 import random
-from src.generators.rels_utils_refactored import fastRandomSampler,get_coeff_from_word,check_slot,find_all,alphabet,count_appearances
+from rels_utils import get_coeff_from_word,check_slot,find_all,alphabet,count_appearances
+from commonclasses import fastRandomSampler
 
 ##########################
 # generators for op_args
