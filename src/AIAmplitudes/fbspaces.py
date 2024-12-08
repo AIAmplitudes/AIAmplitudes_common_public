@@ -1,7 +1,7 @@
 import re
 import os
 from fractions import Fraction
-from file_readers import readFile, SB_to_dict,relpath
+from AIAmplitudes.file_readers import readSymb, SB_to_dict,relpath
 
 bspacenames = {1: 'singleindep3',
                2: 'doubleindep6',
@@ -33,8 +33,7 @@ frelnames = {1: 'isinglerels3',
 def get_perm_fspace(w):
     prefix='frontspace'
     assert os.path.isfile(f'{relpath}/{prefix}')
-    with open(f'{relpath}/{prefix}', 'rt') as f:
-        mystr = ''.join(str.split(readFile(f, f'frontspace[{w}]')))
+    mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}','frontspace',w)))
     newstr = re.split(":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
     basedict = {f'Fp_{w}_{i}': SB_to_dict(el) for i, el in enumerate(dev)}
@@ -45,12 +44,10 @@ def get_perm_fspace(w):
             flipdict[term][elem] = basedict[elem][term]
     return basedict, flipdict
 
-
 def get_perm_bspace(w):
     prefix = 'backspace'
     assert os.path.isfile(f'{relpath}/{prefix}')
-    with open(f'{relpath}/{prefix}', 'rt') as f:
-        mystr = ''.join(str.split(readFile(f, f'backspace[{w}]')))
+    mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}', 'backspace', w)))
     newstr = re.split(":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
     basedict = {f'Bp_{w}_{i}': SB_to_dict(el) for i, el in enumerate(dev)}
@@ -62,24 +59,24 @@ def get_perm_bspace(w):
     return basedict, flipdict
 
 
-def get_rest_bspace(fbspacedir, w):
-    assert os.path.isfile(f'{fbspacedir}/multifinal_new_norm')
-    with open(f'{fbspacedir}/multifinal_new_norm', 'rt') as f:
-        res = readFile(f, str(bspacenames[w]))
+def get_rest_bspace(w):
+    prefix = 'multifinal_new_norm'
+    assert os.path.isfile(f'{relpath}/{prefix}')
+    res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
     myset = {elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem}
     myd = {elem: f'Br_{w}_{i}' for i, elem in enumerate(myset)}
     flip = {f'Br_{w}_{i}': elem for i, elem in enumerate(myset)}
-    return myd, flip
+    return flip, myd
 
 
-def get_rest_fspace(fbspacedir, w):
-    assert os.path.isfile(f'{fbspacedir}/ClipFrontTriple')
-    with open(f'{fbspacedir}/ClipFrontTriple', 'rt') as f:
-        res = readFile(f, str(fspacenames[w]))
+def get_rest_fspace(w):
+    prefix='ClipFrontTriple'
+    assert os.path.isfile(f'{relpath}/{prefix}')
+    res=readSymb(f'{relpath}/{prefix}',str(fspacenames[w]))
     myset = {elem for elem in re.split(":=\[|SB\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem}
     myd = {elem: f'Fr_{w}_{i}' for i, elem in enumerate(myset)}
     flip = {f'Fr_{w}_{i}': elem for i, elem in enumerate(myset)}
-    return myd, flip
+    return flip, myd
 
 
 def getBrel_eqs(f, w):
@@ -204,20 +201,3 @@ def readcrel(crel, w=2, seam="back"):
 def get_relpermdict(mydir, w, seam, reltype):
     return [readcrel(i, w, seam) for i in get_rels_perm(mydir, w, seam, reltype)]
 
-brels=get_brels(relpath)
-frels=get_frels(relpath)
-
-rfspaces={w:get_rest_fspace(relpath,w)[1] for w in range(1,4)}
-rbspaces={w:get_rest_bspace(relpath,w)[1] for w in range(1,8)}
-pfspaces={w:get_perm_fspace(relpath,w)[1] for w in range(1,7)}
-pbspaces={w:get_perm_bspace(relpath,w)[1] for w in range(1,8)}
-
-rfspaces_flip={w:get_rest_fspace(relpath,w)[0] for w in range(1,4)}
-rbspaces_flip={w:get_rest_bspace(relpath,w)[0] for w in range(1,8)}
-pfspaces_flip={w:get_perm_fspace(relpath,w)[0] for w in range(1,7)}
-pbspaces_flip={w:get_perm_bspace(relpath,w)[0] for w in range(1,8)}
-
-pb_1l_sewchecks={w:get_relpermdict(relpath,w,"back","oneletter") for w in range(1,8)}
-pb_2l_sewchecks={w:get_relpermdict(relpath,w,"back","twoletter") for w in range(1,8)}
-pf_1l_sewchecks={w:get_relpermdict(relpath,w,"front","oneletter") for w in range(1,7)}
-pf_2l_sewchecks={w:get_relpermdict(relpath,w,"front","twoletter") for w in range(1,7)}

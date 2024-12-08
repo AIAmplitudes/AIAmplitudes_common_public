@@ -1,15 +1,12 @@
-import os
-from sympy import Poly, terms_gcd, gcd_list
-import re
+import os, re, math
+from sympy import Poly, terms_gcd, gcd_list, Rational
 from sympy import factorint, fraction, primerange
 from sympy.parsing.sympy_parser import (
     parse_expr,
     standard_transformations,
     implicit_multiplication,
 )
-from sympy import Rational
-from file_readers import readSymb,relpath
-import math
+from AIAmplitudes.file_readers import readSymb,relpath
 
 primes = list(primerange(0, 1000))
 
@@ -68,7 +65,7 @@ def parse(t):
                       transformations=standard_transformations + (implicit_multiplication,))
 
 def polynom_convert(filename):
-    input_str = readSymb(f'{relpath}/{filename}')
+    input_str = readSymb(f'{relpath}/{filename}', filename)
     pattern = r'\[(.*?)\](.*?),'
     matches = re.findall(pattern, input_str)
     out_dict = {cl(re.sub(',', '', match[0])):
@@ -77,32 +74,6 @@ def polynom_convert(filename):
 
 def is_pow2(n):
     return (n != 0) and (n & (n - 1) == 0)
-
-allpolys = polynom_convert('all7_new_common_factor')
-mypolys = {k:v for k, v in allpolys.items() if v != '0'}
-uglypolys = {k:v for k, v in mypolys.items() if '(' not in v}
-
-mycoeffs={}
-mygcds={}
-mycoeffs_nogcd={}
-mycoeffs_unenc={}
-myquadrats={}
-mylins={}
-for k,v in mypolys.items():
-    this_coeffs=Poly(parse(v).expand()).all_coeffs()
-    mygcd=gcd_list(this_coeffs)
-    mygcds[k]=mygcd
-    if Poly(parse(v).expand()).degree('L') < 3:
-        myquadrats[k] = this_coeffs
-        this_coeffs = [0] + this_coeffs
-        if Poly(parse(v).expand()).degree('L') < 2:
-            mylins[k] = this_coeffs
-            this_coeffs = [0] + this_coeffs
-    myc=[c/mygcd for c in this_coeffs]
-    mycoeffs_nogcd[k] = [c for c in this_coeffs]
-    mycoeffs_unenc[k] = [[str(mygcd)],[c for c in myc]]
-    mycoeffs[k] = [[str(mygcd)],[int_to_factors(c) for c in myc]]
-
 
 def showcoeffs(i):
     mydivs = {k: v for k, v in mycoeffs_nogcd.items() if len(v) > i and ('/' in str(v[i]))}
@@ -144,8 +115,45 @@ def showcoeffs(i):
 
     return outdict
 
-myints = {k: mycoeffs_unenc[k] for k, v in mycoeffs.items() if ('/' not in v[0][0])}
-mydivs = {k:v for k,v in mycoeffs.items() if ('/' in v[0][0])}
-mydivs_enc = {k: [enc_elem(coef) for coef in mycoeffs_nogcd[k]] for k, v in mydivs.items()}
-myints_enc = {k: [enc_elem(coef) for coef in mycoeffs_nogcd[k]] for k, v in myints.items()}
-my_all = mydivs | myints
+def get_runpolynomials():
+    allpolys = polynom_convert('all7_new_common_factor')
+    nonzeros = {k:v for k, v in allpolys.items() if v != '0'}
+    unfactorable = {k:v for k, v in nonzeros.items() if '(' not in v}
+    return {'all': allpolys, 'nonzero':nonzeros, 'unfactorable':unfactorable}
+
+def get_polynomialcoeffs(type):
+    mydict=get_runpolynomials()
+    mycoeffs={}
+    mygcds={}
+    mycoeffs_nogcd={}
+    mycoeffs_unenc={}
+    myquadrats={}
+    mylins={}
+    for k,v in mydict['nonzero'].items():
+        this_coeffs=Poly(parse(v).expand()).all_coeffs()
+        mygcd=gcd_list(this_coeffs)
+        mygcds[k]=mygcd
+        if Poly(parse(v).expand()).degree('L') < 3:
+            myquadrats[k] = this_coeffs
+            this_coeffs = [0] + this_coeffs
+            if Poly(parse(v).expand()).degree('L') < 2:
+                mylins[k] = this_coeffs
+                this_coeffs = [0] + this_coeffs
+        myc=[c/mygcd for c in this_coeffs]
+        mycoeffs_nogcd[k] = [c for c in this_coeffs]
+        mycoeffs_unenc[k] = [[str(mygcd)],[c for c in myc]]
+        mycoeffs[k] = [[str(mygcd)],[int_to_factors(c) for c in myc]]
+
+    # polynomials
+    if type == "coeffs":
+        myints = {k: mycoeffs_unenc[k] for k, v in mycoeffs.items() if ('/' not in v[0][0])}
+        mydivs = {k: v for k, v in mycoeffs.items() if ('/' in v[0][0])}
+        my_all = mydivs | myints
+        return {'all':my_all, 'intcoeffs':myints, 'divcoeffs':mydivs}
+    elif type == "coeffs_enc":
+        myints_enc = {k: [enc_elem(coef) for coef in mycoeffs_nogcd[k]] for k, v in myints.items()}
+        mydivs_enc = {k: [enc_elem(coef) for coef in mycoeffs_nogcd[k]] for k, v in mydivs.items()}
+        my_all_enc = mydivs_enc | myints_enc
+        return {'all':my_all_enc, 'intcoeffs':myints_enc, 'divcoeffs':mydivs_enc}
+    else:
+        return

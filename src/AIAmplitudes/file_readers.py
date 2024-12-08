@@ -1,20 +1,15 @@
 import re,os
-from fbspaces import get_rest_bspace,get_rest_fspace
-#utility functions block
 
-relpath='./data/'
-quad_list = get_rest_bspace(relpath, 4)
-oct_list = get_rest_bspace(relpath, 8)
-triple_list = get_rest_fspace(relpath, 3)
+relpath='./data'
 
-def convert(filename, reptype=None, loop=None):
+def convert(filename, loop=None, reptype=None):
     #reptype: quad, oct, ae, aef, None
     if reptype in {"oct","quad"}:
         if reptype== "oct":
-            base = readSymb(filename, 'ESymboct', loop)[:-2]
+            base = readSymb(filename, 'Esymboct', loop)[:-2]
             prefix = [f'Br_8_{i}' for i in range(93)]
         elif reptype == "quad":
-            base = readSymb(filename, 'ESymbquad', loop)[:-2]
+            base = readSymb(filename, 'Esymbquad', loop)[:-2]
             prefix = [f'Br_4_{i}' for i in range(8)]
         base = re.sub(' ', '', base)
         t = re.split(":=\[|\),|\)\]", base)[1:]
@@ -28,7 +23,7 @@ def convert(filename, reptype=None, loop=None):
         if len(dev[-1]) == 0: dev = dev[:-1]
     else:
         dev = re.split(":=|SB\(|\)", re.sub('[,*]', '',
-                                            readSymb(filename, 'ESymb', loop)))[1:-1]
+                                            readSymb(filename, 'Esymb', loop)))[1:-1]
 
     keys = dev[1::2]
     values = [int(re.sub('[+-]$', t[0] + '1', t)) for t in dev[0::2]]
@@ -39,10 +34,9 @@ def convert(filename, reptype=None, loop=None):
 def readSymb(filename, prefix, loop=None):
     #read a symbol, given a filename and prefix
     assert os.path.isfile(filename)
-    assert prefix in {'Esymb', 'Eaef', 'Eae', 'Esymbquad', 'Esymboct',
-                      'frontspace', 'backspace','all7_new_common_factor', 'all7_sub_set', 'all6abc_list'}
-
-    if prefix not in {'all7_new_common_factor', 'all7_sub_set', 'all6abc_list'}:
+    assert ('indep' in prefix) or (prefix in {'Esymb', 'Eaef', 'Eae', 'Esymbquad', 'Esymboct',
+                      'frontspace', 'backspace','all7_new_common_factor', 'all7_sub_set', 'all6abc_list'})
+    if not (('indep' in prefix) or (prefix in {'all7_new_common_factor', 'all7_sub_set', 'all6abc_list'})):
         mypref=prefix + '[' + str(loop) + ']'
     else: mypref=prefix
 

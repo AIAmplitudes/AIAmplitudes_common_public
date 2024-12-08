@@ -1,2 +1,4 @@
 # AIAA_common
-Common utils library. This should be compiled as a package (and ideally hosted on pyPI)
+Common utils library.
+
+TODO: find good solution for data storage to access from a package.
