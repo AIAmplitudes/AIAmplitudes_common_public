@@ -157,10 +157,9 @@ def get_rels_perm(mydir, weight, seam="front", reltype="oneletter"):
         print("bad seam type!")
         raise ValueError
 
-    assert os.path.isfile(f'{mydir}/{file}')
-    with open(f'{mydir}/{file}', 'rt') as f:
-        checks = readFile(f, f'{prefix}[{weight}]')
 
+    assert os.path.isfile(f'{mydir}/{file}')
+    checks = readSymb(f'{mydir}/{file}', prefix,weight)
     c = [i for i in checks.split("\'")[:-1] if i != ', ' and 'sewrels' not in i]
     return c
 

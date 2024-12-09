@@ -41,18 +41,21 @@ def readSymb(filename, prefix, loop=None):
     else: mypref=prefix
 
     with open(filename, 'rt') as f:
-        # read a symbol from an opened file
-        reading_form = False
-        res = ''
-        for line in f:
-            if not reading_form:
-                if not line.startswith(mypref): continue
-                res = ''
-                reading_form = True
-            if 'space' in mypref and line.isspace(): break
-            res += line[:-2] if line[-2] == '\\' else line[:-1]
-            if line[-2] in [":", ";"]:
-                break
+        return readFile(f,mypref)
+
+def readFile(f, prefix):
+    #read from an open file
+    res = ''
+    reading_form = False
+    for line in f:
+        if not reading_form:
+            if not line.startswith(prefix): continue
+            res = ''
+            reading_form = True
+        if line.isspace(): break
+        res += line[:-2] if line[-2] == '\\' else line[:-1]
+        if line[-2] in [":", ";"]:
+            break
     return res
 
 def SB_to_dict(mystring):
