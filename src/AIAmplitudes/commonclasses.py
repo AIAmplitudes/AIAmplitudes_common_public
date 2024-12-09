@@ -1,5 +1,6 @@
 import copy
 import random
+import argparse
 
 #some classes to hold the data in different formats.
 #symb is an overload of dict with some elementwise operators on values,
@@ -228,3 +229,16 @@ class fastRandomSampler(object):
                 yield {k: v for k, v in self.pop_random_gen(subdict_size)}
             else:
                 yield {k for k in self.pop_random_gen(subdict_size)}
+
+FALSY_STRINGS = {'off', 'false', '0'}
+TRUTHY_STRINGS = {'on', 'true', '1'}
+def bool_flag(s):
+    """
+    Parse boolean arguments from the command line.
+    """
+    if s.lower() in FALSY_STRINGS:
+        return False
+    elif s.lower() in TRUTHY_STRINGS:
+        return True
+    else:
+        raise argparse.ArgumentTypeError("Invalid value for a boolean flag!")

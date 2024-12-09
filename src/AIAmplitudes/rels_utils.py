@@ -1,8 +1,13 @@
 # script to generate json files of a user-defined set of linear relations matched with a given symbol
 # script to evaluate various linear relations satisfied by the symbols of the 3-point form factor of phi2
 
+import io
 import os
+import sys
+import math
+import re
 import numpy as np
+import time
 import datetime
 import itertools
 from itertools import permutations
@@ -10,24 +15,96 @@ import random
 import json
 import copy
 
+
 ##############################################################################################
-# AUXILIARY FUNCTIONS #
+# HOMOGENOUS LINEAR RELATIONS LOOK-UP TABLES#
 ##############################################################################################
 # fixed alphabet
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f']
 quad_prefix = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 steinmanns={'a':'d', 'b':'e', 'c':'f', 'd':'aef', 'e':'bdf', 'f':'cde'}
 
+######### Nonlocal rels #################
 # triple-adjacency relation: plus dihedral symmetry; any slot
 # integrability relations: any slot
 dihedral_table = [list(permutations(alphabet[:3]))[i]+list(permutations(alphabet[3:]))[i]
                   for i in range(len(alphabet))]
+cycle_table = [dihedral_table[i] for i in [0, 3, 4]]
+flip_table = [dihedral_table[i] for i in [0, 1, 2, 5]]
 triple_table = [{'aab': 1, 'abb': 1, 'acb': 1}]
 pair_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
                               {'ca': 1, 'cb': 1, 'ac': -1, 'bc': -1},  # eq 3.7
                               {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
                                'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,'bc': -2},
                                  {'ad':1},{'da':1},{'df':1}]
+
+######### Localized rels #################
+# first entry condition
+first_entry_rel_table = [{'d': 1}, {'e': 1}, {'f': 1}]  # Sec 3.1 (iv)
+
+# double-adjacency condition: plus dihedral symmetry; any slot
+double_adjacency_rel_table = [{'de': 1}, {'ad': 1}, {'da': 1}]  # eq 2.19, 2.20
+
+# triple-adjacency relation: plus dihedral symmetry; any slot
+triple_adjacency_rel_table = [{'aab': 1, 'abb': 1, 'acb': 1}]  # eq 2.21
+
+# integrability relations: any slot
+integral_rel_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
+                      {'ca': 1, 'cb': 1, 'ac': -1, 'bc': -1},  # eq 3.7
+                      {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
+                       'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,
+                       'bc': -2}]  # eq 3.8 coeff (8)! Takes longest time.
+
+# multi-final-entries relations: plus dihedral symmetry
+# new order: one-term relations, short relations (<=4 terms), long relations (>4 terms).
+final_entries_rel_table = [{'a': 1}, {'b': 1}, {'c': 1},  # eq 4.6 (idx: 0-2)
+                           {'ad': 1}, {'ed': 1},  # eq 4.7 (1) (idx: 3-4)
+                           {'add': 1}, {'abd': 1}, {'ace': 1}, {'ebd': 1}, {'edd': 1},  # eq 4.9 (idx: 5-9)
+                           {'addd': 1}, {'abbd': 1}, {'adbd': 1}, {'cbbd': 1},  # eq 4.10 (idx: 10-13)
+                           {'ebbd': 1}, {'ebdd': 1}, {'edbd': 1}, {'eddd': 1}, {'fdbd': 1},  # eq 4.11 (idx: 14-18)
+
+                           {'bf': 1, 'bd': -1},  # eq 4.7 (2) (idx: 19)
+                           {'cdd': 1, 'cee': 1},  # eq 4.8 (1) (idx: 20)
+                           {'ddbd': 1, 'dbdd': -1},  # eq 4.12 (idx: 21)
+                           {'cbdd': 1, 'cdbd': -1},  # eq 4.15(1) (idx: 22)
+                           {'fbd': 1, 'dbd': -1, 'bdd': 1},  # eq 4.8 (2) (idx: 23)
+                           {'bddd': 1, 'faff': 1, 'dbdd': -1, 'eaff': -1, 'fbdd': 1, 'aeee': -1},  # eq 4.13 (idx: 24)
+                           {'abdd': 1, 'cddd': -1 / 2, 'dcee': -1 / 2, 'aeee': 1 / 2, 'eaff': 1 / 2, 'faff': -1 / 2,
+                            'ecee': 1 / 2},  # eq 4.14 (idx: 25)
+                           {'cbdd': 1, 'bfff': -1 / 2, 'dcee': 1 / 2, 'ecee': -1 / 2, 'cddd': 1 / 2, 'dbdd': 1 / 2,
+                            'fbdd': -1 / 2},  # eq 4.15(2) (idx: 26)
+                           {'cdbd': 1, 'bfff': -1 / 2, 'dcee': 1 / 2, 'ecee': -1 / 2, 'cddd': 1 / 2, 'dbdd': 1 / 2,
+                            'fbdd': -1 / 2},  # eq 4.15(3) (idx: 27)
+                           {'fbbd': 1, 'dbbd': -1, 'bbdd': 1, 'faff': -1 / 2, 'dbdd': 1 / 2, 'fbdd': -1 / 2,
+                            'eaff': 1 / 2, 'aeee': 1 / 2, 'bfff': -1 / 2}]  # eq 4.16 (idx: 28)
+
+# multi-initial-entries relations: plus dihedral symmetry
+# new order: one-term relations, short relations (<=4 terms), long relations (>4 terms).
+initial_entries_rel_table = [{'ad': 1},
+                             {'aad': 1}, {'bcf': 1}, {'bde': 1}, {'bdf': 1}, {'bda': 1}, {'abd': 1},
+                             {'cb': 1, 'bc': -1},
+                             {'cd': 1, 'bd': -1},
+                             {'aaf': 1, 'bbf': 1, 'abf': -1},
+                             {'aab': 1, 'aac': 1, 'cca': 1, 'bba': -1, 'aba': -1},
+                             {'bba': 1, 'bbc': 1, 'ccb': 1, 'aab': -1, 'abb': -1},
+                             {'abc': 1, 'aac': 1, 'bbc': 1, 'cca': 1, 'ccb': 1},
+                             {'aac': 1, 'cca': 1, 'bbc': -1, 'ccb': -1, 'afa': 1 / 2, 'aaf': -1 / 2, 'bbf': 1 / 2,
+                              'afb': -1 / 2}]
+
+def trivial_zero_rel_table(format="full"):
+    myrel_table = first_entry_rel_table
+    slots = [0] * len(first_entry_rel_table)
+
+    if format == "full":
+        myrel_table += final_entries_rel_table[:3]
+        slots += [-1] * len(final_entries_rel_table[:3])
+
+    steinmanns = get_rel_table_dihedral(double_adjacency_rel_table)
+
+    myrel_table += steinmanns
+    slots += [None] * len(steinmanns)
+    return myrel_table, slots
+
 
 def get_image(word, rownum):
     return ''.join([dihedral_table[rownum][idx] for idx in [alphabet.index(l) for l in [*word]]])
@@ -36,32 +113,24 @@ def table_to_rels(table):
     tr=[{get_image(k,ind):v for k,v in rel.items()} for ind in range(len(alphabet)) for rel in table]
     return [i for n, i in enumerate(tr) if not
                any(set(sorted(i.keys())) == set(sorted(k.keys())) for k in tr[n + 1:])]
+
 pair_rels=table_to_rels(pair_table)
 triple_rels=table_to_rels(triple_table)
-
-
-rels_to_generate= {"first": [[500]*3,[0]*3],
-                            "double": [[500]*3,[0]*3],
-                            "triple": [[500],[1]],
-                            "dihedral": [[500],[1]],
-                            "final": [[500]*19+[500]*10,[0]*19+[1]*10],
-                            "integral": [[500]*3,[1]*3]
-                              }
-
-rels_to_generate_compact_default = {'first': [[500]*3, [0]*3],
-                                    'double': [[500]*3, [0]*3],
-                                    'triple': [[500], [1]],
-                                    'integral': [[500]*3, [1]*3]}
-
-def sumdict(k,d1,d2):
-    out={}
+############################################################################################################
+def sumdict(k, d1, d2):
+    out = {}
     for k in d1 | d2:
-        if (k in d1) and (k in d2): val = d1[k]+d2[k]
-        elif (k in d1): val = d1[k]
-        elif (k in d2): val = d2[k]
-        else: val = 0
-    out[k]=val
+        if (k in d1) and (k in d2):
+            val = d1[k] + d2[k]
+        elif (k in d1):
+            val = d1[k]
+        elif (k in d2):
+            val = d2[k]
+        else:
+            val = 0
+    out[k] = val
     return out
+
 
 def find_all(a_str, sub):
     start = 0
@@ -71,23 +140,27 @@ def find_all(a_str, sub):
         yield start
         start += len(sub)
 
-def count_appearances(key,slot):
+
+def count_appearances(key, slot):
     # the letter in slot is the Nth appearance, counting from left and starting the count at 1.
     # returns N.
-    letter=key[slot]
-    return [i for i in find_all(key,letter)].index(slot)+1
+    letter = key[slot]
+    return [i for i in find_all(key, letter)].index(slot) + 1
 
-def check_slot(word,substr,slotnum):
-    res = (word[slotnum: slotnum+len(substr)] == substr)
+
+def check_slot(word, substr, slotnum):
+    res = (word[slotnum: slotnum + len(substr)] == substr)
     return res
 
-def update_counter(word,only_check_nonzeros,symb,min_overlap,count):
-    #if we need an overlap of more than 1, increment the counter
-    #otherwise, we're guaranteed an overlap of 1 if we draw from the symb, so don't bother
-    if min_overlap == 1: count = 1
+
+def update_counter(word, only_check_nonzeros, symb, min_overlap, count):
+    # if we need an overlap of more than 1, increment the counter
+    # otherwise, we're guaranteed an overlap of 1 if we draw from the symb, so don't bother
+    if min_overlap == 1:
+        count = 1
     else:
         if only_check_nonzeros == True:
-            #If the symb has zeros but we want to ignore them
+            # If the symb has zeros but we want to ignore them
             if (word in symb) or (symb[word] == 0):
                 count += 1
         else:
@@ -95,39 +168,55 @@ def update_counter(word,only_check_nonzeros,symb,min_overlap,count):
                 count += 1
     return count
 
+
 def is_triv_zero(word):
-    for i,letter in enumerate(word):
-        if i == len(word)-1: continue
+    for i, letter in enumerate(word):
+        if i == len(word) - 1:
+            continue
         else:
-            if word[i+1] in steinmanns[letter]: return True
+            if word[i + 1] in steinmanns[letter]: return True
     return False
 
+
 def is_ok_phi2(word):
-    if word[0] in 'def': return False
-    elif word[-1] in 'abc': return False
-    elif is_triv_zero(word): return False
-    else: return True
+    if word[0] in 'def':
+        return False
+    elif word[-1] in 'abc':
+        return False
+    elif is_triv_zero(word):
+        return False
+    else:
+        return True
+
 
 def is_ok_phi3(word):
-    if word[0] in 'def': return False
-    elif word[-1] in 'def': return False
-    elif is_triv_zero(word): return False
-    else: return True
+    if word[0] in 'def':
+        return False
+    elif word[-1] in 'def':
+        return False
+    elif is_triv_zero(word):
+        return False
+    else:
+        return True
+
 
 def is_ok(word):
     return True
 
+
 def count_ones(binlist):
-    i=0
+    i = 0
     for elem in binlist:
         if elem == 1: i += 1
     return i
 
+
 def count_zeros(binlist):
-    i=0
+    i = 0
     for elem in binlist:
         if elem == 0: i += 1
     return i
+
 
 def kbits(totsum, str_len):
     for bits in itertools.combinations(range(str_len), totsum):
@@ -136,9 +225,10 @@ def kbits(totsum, str_len):
             s[bit] = 1
         yield s
 
+
 ###################################################################################
 ########################################################################################################################
-#Auxiliary Functions
+# Auxiliary Functions
 #######################################################################################################################
 
 def read_rel_info(rels_to_generate, make_zero_rels=False):
@@ -152,30 +242,30 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
     rels, slots, to_gens, overlaps, relnames: lists; consisting of: relation dicts, slots for rel, num to generate per rel, how much to overlap with sym, name of rel.
     '''
 
-    rels, slots, to_gens, overlaps, relnames =[], [], [], [], []
+    rels, slots, to_gens, overlaps, relnames = [], [], [], [], []
     for rel_key, rel_info in rels_to_generate.items():
         for i in range(len(rel_info[0])):
             if not make_zero_rels and rel_info[1][i] == 0: continue
             myrel_table = {}
             myslot = None
             if rel_key == 'first':
-                myrel_table=get_rel_table_dihedral(first_entry_rel_table)
-                myslot=0
+                myrel_table = get_rel_table_dihedral(first_entry_rel_table)
+                myslot = 0
             elif rel_key == 'initial':
-                myrel_table=get_rel_table_dihedral(initial_entries_rel_table)
-                myslot=0
+                myrel_table = get_rel_table_dihedral(initial_entries_rel_table)
+                myslot = 0
             elif rel_key == 'double':
-                myrel_table=get_rel_table_dihedral(double_adjacency_rel_table)
-                myslot=None
+                myrel_table = get_rel_table_dihedral(double_adjacency_rel_table)
+                myslot = None
             elif rel_key == 'triple':
-                myrel_table=get_rel_table_dihedral(triple_adjacency_rel_table)
-                myslot=None
+                myrel_table = get_rel_table_dihedral(triple_adjacency_rel_table)
+                myslot = None
             elif rel_key == 'integral':
-                myrel_table=get_rel_table_dihedral(integral_rel_table)
-                myslot=None
+                myrel_table = get_rel_table_dihedral(integral_rel_table)
+                myslot = None
             elif rel_key == 'final':
-                myrel_table=get_rel_table_dihedral(final_entries_rel_table)
-                myslot=-1
+                myrel_table = get_rel_table_dihedral(final_entries_rel_table)
+                myslot = -1
             elif rel_key == 'dihedral':
                 myrel_table = [None] * len(rel_info[0])
                 myslot = None
@@ -189,6 +279,7 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
             overlaps.append(rel_info[1][i])
             relnames.append(f'{rel_key}_{i}')
     return rels, slots, to_gens, overlaps, relnames
+
 
 def gen_next(letter):
     # hardcode adjacency rules to generate nontrivial zeroes
@@ -217,8 +308,9 @@ def gen_next(letter):
         letter = mylist[int(len(mylist) * random.random())]
         return letter
 
+
 def gen_first(letter):
-    #given the second letter, generate a valid first letter
+    # given the second letter, generate a valid first letter
     if letter == 'a':
         mylist = ['a', 'b', 'c']
     elif letter == 'b':
@@ -231,11 +323,13 @@ def gen_first(letter):
         mylist = ['a', 'c']
     elif letter == 'f':
         mylist = ['a', 'b']
-    else: raise ValueError
+    else:
+        raise ValueError
     return mylist[int(len(mylist) * random.random())]
 
+
 def gen_last(letter):
-    #given the second to last letter, generate a valid last letter
+    # given the second to last letter, generate a valid last letter
     if letter == 'a':
         mylist = ['e', 'f']
     elif letter == 'b':
@@ -243,36 +337,41 @@ def gen_last(letter):
     elif letter == 'c':
         mylist = ['d', 'e']
     elif letter == 'd':
-        mylist=['d']
+        mylist = ['d']
     elif letter == 'e':
-        mylist=['e']
+        mylist = ['e']
     elif letter == 'f':
-        mylist=['f']
-    else: raise ValueError
+        mylist = ['f']
+    else:
+        raise ValueError
     letter = mylist[int(len(mylist) * random.random())]
     return letter
 
-def gen_valid_substr(to_gen,input=None,suffix=False):
-    #generate a valid substring. If input is given, build a string that is compatible with it.
-    #If 'suffix', gen a valid substring that can be reversed and prepended to input
-    #otherwise, gen a valid substring that can be appended to input
-    letter=''
+
+def gen_valid_substr(to_gen, input=None, suffix=False):
+    # generate a valid substring. If input is given, build a string that is compatible with it.
+    # If 'suffix', gen a valid substring that can be reversed and prepended to input
+    # otherwise, gen a valid substring that can be appended to input
+    letter = ''
     if input:
-        if suffix: letter=input[0]
-        else: letter = input[-1]
+        if suffix:
+            letter = input[0]
+        else:
+            letter = input[-1]
     for i in range(to_gen):
         if not suffix:
             if i == 0:
                 mylist = ['a', 'b', 'c']
                 letter = mylist[int(len(mylist) * random.random())]
-        if suffix and (i == to_gen-1):
+        if suffix and (i == to_gen - 1):
             letter = gen_first(letter)
         else:
-            letter=gen_next(letter)
+            letter = gen_next(letter)
         yield letter
 
+
 def gen_quad_suffix(letter):
-    #hardcode adjacency rules to generate nontrivial zeroes
+    # hardcode adjacency rules to generate nontrivial zeroes
     if letter == 'a':
         mylist = ['b', 'c', 'd', 'f', 'h']
         return mylist[int(len(mylist) * random.random())]
@@ -291,16 +390,18 @@ def gen_quad_suffix(letter):
         mylist = ['b', 'c', 'd', 'f']
         return mylist[int(len(mylist) * random.random())]
 
+
 def new_nontriv_key(loops, format):
     if format == "quad":
-        key=[letter for letter in gen_valid_substr(2 * loops - 4)]
-        suff=gen_quad_suffix(key[-1])
-        return ''.join(suff+key)
+        key = [letter for letter in gen_valid_substr(2 * loops - 4)]
+        suff = gen_quad_suffix(key[-1])
+        return ''.join(suff + key)
     else:
         # generate a key that is not a trivial zero.
-        key=[letter for letter in gen_valid_substr(2 * loops - 1)]
+        key = [letter for letter in gen_valid_substr(2 * loops - 1)]
         last = gen_last(key[-1])
-        return ''.join(key+last)
+        return ''.join(key + last)
+
 
 def generate_random_word(word_length, format='full', seed=0):
     '''
@@ -313,7 +414,7 @@ def generate_random_word(word_length, format='full', seed=0):
     OUTPUTS:
     word: str; a word with letters in the alphabet and the specific length.
     '''
-    if format not in ["full","quad","oct"]:
+    if format not in ["full", "quad", "oct"]:
         print("Error, bad format!")
         raise ValueError
     word = ''
@@ -323,15 +424,16 @@ def generate_random_word(word_length, format='full', seed=0):
     if format == 'full':
         return word
     if format == 'quad':
-        print(word,quad_prefix)
-        random.seed((seed+100)*10) # must generate another random number
+        print(word, quad_prefix)
+        random.seed((seed + 100) * 10)  # must generate another random number
         prefix = quad_prefix[int(len(quad_prefix) * random.random())]
-        return prefix+word
-    if format == 'oct': # not yet implemented
-        #random.seed((seed+1000)*100) # must generate another random number
-        #prefix = oct_prefix[int((len(quad_prefix) - 1) * random.random())]
-        #return prefix+word
+        return prefix + word
+    if format == 'oct':  # not yet implemented
+        # random.seed((seed+1000)*100) # must generate another random number
+        # prefix = oct_prefix[int((len(quad_prefix) - 1) * random.random())]
+        # return prefix+word
         return None
+
 
 def get_coeff_from_word(word, symb):
     '''
@@ -347,6 +449,7 @@ def get_coeff_from_word(word, symb):
     if word in symb:
         return symb[word]
     return 0
+
 
 def get_word_from_coeff(coeff, symb):
     '''
@@ -376,7 +479,7 @@ def is_word(word, format='full'):
     OUTPUTS:
     True/False: bool.
     '''
-    if format not in ["full","quad","oct"]:
+    if format not in ["full", "quad", "oct"]:
         print("Error, bad format!")
         raise ValueError
 
@@ -395,15 +498,16 @@ def is_word(word, format='full'):
                     return False
             return True
 
-    if format == 'oct': # not yet implemented
-        #if word[0] not in oct_prefix:
-            #return False
-        #else:
-            #for letter in word[1:]:
-                #if letter not in alphabet:
-                    #return False
-            #return True
+    if format == 'oct':  # not yet implemented
+        # if word[0] not in oct_prefix:
+        # return False
+        # else:
+        # for letter in word[1:]:
+        # if letter not in alphabet:
+        # return False
+        # return True
         return None
+
 
 def find_nonwords(symb, format='full'):
     '''
@@ -484,7 +588,7 @@ def count_nonterms(symb, format='full'):
     return len(find_nonterms(symb, format=format)) / len(symb)
 
 
-def remove_nonterms(symb,format='full'):
+def remove_nonterms(symb, format='full'):
     '''
     Remove nonterms from a given symbol.
     ---------
@@ -495,10 +599,11 @@ def remove_nonterms(symb,format='full'):
     symb: dict; all nonterms removed.
     '''
 
-    nonterms = find_nonterms(symb,format=format)
+    nonterms = find_nonterms(symb, format=format)
     for key in nonterms:
         symb.pop(key)
     return symb
+
 
 ##############################################################################################
 # DIHEDRAL SYMMETRY #
@@ -529,7 +634,8 @@ def get_dihedral_images(word):
     dihedral_images = [''.join([dihedral_table[row][idx] for idx in word_idx]) for row in range(len(alphabet))]
     return dihedral_images
 
-def get_valid_dihedral_images(word,pruned_symb,badsymb):
+
+def get_valid_dihedral_images(word, pruned_symb, badsymb):
     '''
     Get all the dihedral images of a given word that are in a symb and not in a badsymb.
     ---------
@@ -540,10 +646,12 @@ def get_valid_dihedral_images(word,pruned_symb,badsymb):
     dihedral_images: list; each item in the list is a word (str); always has six items.
     '''
     word_idx = [alphabet.index(l) for l in [*word]]
-    dihedral_images = {row:image for row in range(len(alphabet)) if (image := ''.join([dihedral_table[row][idx] for idx in word_idx])) in pruned_symb and image not in badsymb}
+    dihedral_images = {row: image for row in range(len(alphabet)) if (
+        image := ''.join([dihedral_table[row][idx] for idx in word_idx])) in pruned_symb and image not in badsymb}
     return dihedral_images
 
-def get_dihedral_pair(key,goodkeys,symb,type="cycle"):
+
+def get_dihedral_pair(key, goodkeys, symb, type="cycle"):
     '''
     Given a key, the
     ---------
@@ -555,16 +663,20 @@ def get_dihedral_pair(key,goodkeys,symb,type="cycle"):
     OUTPUTS:
     pair; dict. A two-term instance of type "cycle" or "flip".
     '''
-    #print(goodkeys)
-    if type == "cycle": indices=set([3,4])
-    elif type == "flip": indices=set([1,2,5])
-    else: raise ValueError
-    good_inds=list(indices.intersection(set(goodkeys.keys())))
+    # print(goodkeys)
+    if type == "cycle":
+        indices = set([3, 4])
+    elif type == "flip":
+        indices = set([1, 2, 5])
+    else:
+        raise ValueError
+    good_inds = list(indices.intersection(set(goodkeys.keys())))
     if len(good_inds) == 0: return None
-    #get random key: ind from goodkeys
+    # get random key: ind from goodkeys
     ind = random.choice(good_inds)
     pair = {key: [symb[key], 1], goodkeys[ind]: [symb[goodkeys[ind]], -1]}
     return pair
+
 
 def get_cycle_images(word):
     '''
@@ -577,8 +689,9 @@ def get_cycle_images(word):
     cycle_images: list; each item in the list is a word (str); always has six items.
     '''
     word_idx = [alphabet.index(l) for l in [*word]]
-    cycle_images = [''.join([cycle_table[row][idx] for idx in word_idx]) for row in range(int(len(alphabet)/2))]
+    cycle_images = [''.join([cycle_table[row][idx] for idx in word_idx]) for row in range(int(len(alphabet) / 2))]
     return cycle_images
+
 
 def get_dihedral_terms_in_symb(word, symb, count_coeffs=False, failsymb=None):
     '''
@@ -607,6 +720,7 @@ def get_dihedral_terms_in_symb(word, symb, count_coeffs=False, failsymb=None):
 
     unique_coeffs, counts = np.unique(np.array(list(images_coeffs.values())), return_counts=True)
     return images_coeffs, dict(zip(unique_coeffs, counts))
+
 
 def get_cycles_flips_terms_in_symb(word, symb, count_coeffs=False):
     '''
@@ -644,7 +758,7 @@ def get_cycles_flips_terms_in_symb(word, symb, count_coeffs=False):
         return images_coeffs, cycles_coeffs, flips_coeffs
 
     unique_coeffs, counts = np.unique(np.array(list(images_coeffs.values())), return_counts=True)
-    return images_coeffs, cycles_coeffs, flips_coeffs,dict(zip(unique_coeffs, counts))
+    return images_coeffs, cycles_coeffs, flips_coeffs, dict(zip(unique_coeffs, counts))
 
 
 def count_wrong_dihedral(word, coeff_truth, symb, return_wrong_dihedral=False):
@@ -675,95 +789,6 @@ def count_wrong_dihedral(word, coeff_truth, symb, return_wrong_dihedral=False):
         return len(wrong_dihedral) / len(images_coeffs)
 
     return len(wrong_dihedral) / len(images_coeffs), wrong_dihedral
-
-##############################################################################################
-# HOMOGENOUS LINEAR RELATIONS LOOK-UP TABLES#
-##############################################################################################
-dihedral_table = [list(permutations(alphabet[:3]))[i]+list(permutations(alphabet[3:]))[i] for i in range(len(alphabet))]
-cycle_table=[dihedral_table[i] for i in [0,3,4]]
-flip_table=[dihedral_table[i] for i in [0,1,2,5]]
-
-# first entry condition
-first_entry_rel_table = [{'d': 1}, {'e': 1}, {'f': 1}]  # Sec 3.1 (iv)
-
-# double-adjacency condition: plus dihedral symmetry; any slot
-double_adjacency_rel_table = [{'de': 1}, {'ad': 1}, {'da': 1}]  # eq 2.19, 2.20
-
-# triple-adjacency relation: plus dihedral symmetry; any slot
-triple_adjacency_rel_table = [{'aab': 1, 'abb': 1, 'acb': 1}]  # eq 2.21
-
-# integrability relations: any slot
-integral_rel_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
-                      {'ca': 1, 'cb': 1, 'ac': -1, 'bc': -1},  # eq 3.7
-                      {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
-                       'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,
-                       'bc': -2}]  # eq 3.8 coeff (8)! Takes longest time.
-
-# multi-final-entries relations: plus dihedral symmetry
-# new order: one-term relations, short relations (<=4 terms), long relations (>4 terms).
-final_entries_rel_table = [{'a': 1}, {'b': 1}, {'c': 1},  # eq 4.6 (idx: 0-2)
-                           {'ad': 1}, {'ed': 1},  # eq 4.7 (1) (idx: 3-4)
-                           {'add': 1}, {'abd': 1}, {'ace': 1}, {'ebd': 1}, {'edd': 1},  # eq 4.9 (idx: 5-9)
-                           {'addd': 1}, {'abbd': 1}, {'adbd': 1}, {'cbbd': 1},  # eq 4.10 (idx: 10-13)
-                           {'ebbd': 1}, {'ebdd': 1}, {'edbd': 1}, {'eddd': 1}, {'fdbd': 1},  # eq 4.11 (idx: 14-18)
-
-                           {'bf': 1, 'bd': -1},  # eq 4.7 (2) (idx: 19)
-                           {'cdd': 1, 'cee': 1},  # eq 4.8 (1) (idx: 20)
-                           {'ddbd': 1, 'dbdd': -1},  # eq 4.12 (idx: 21)
-                           {'cbdd': 1, 'cdbd': -1},  # eq 4.15(1) (idx: 22)
-                           {'fbd': 1, 'dbd': -1, 'bdd': 1},  # eq 4.8 (2) (idx: 23)
-                           {'bddd': 1, 'faff': 1, 'dbdd': -1, 'eaff': -1, 'fbdd': 1, 'aeee': -1},  # eq 4.13 (idx: 24)
-                           {'abdd': 1, 'cddd': -1 / 2, 'dcee': -1 / 2, 'aeee': 1 / 2, 'eaff': 1 / 2, 'faff': -1 / 2,
-                            'ecee': 1 / 2},  # eq 4.14 (idx: 25)
-                           {'cbdd': 1, 'bfff': -1 / 2, 'dcee': 1 / 2, 'ecee': -1 / 2, 'cddd': 1 / 2, 'dbdd': 1 / 2,
-                            'fbdd': -1 / 2},  # eq 4.15(2) (idx: 26)
-                           {'cdbd': 1, 'bfff': -1 / 2, 'dcee': 1 / 2, 'ecee': -1 / 2, 'cddd': 1 / 2, 'dbdd': 1 / 2,
-                            'fbdd': -1 / 2},  # eq 4.15(3) (idx: 27)
-                           {'fbbd': 1, 'dbbd': -1, 'bbdd': 1, 'faff': -1 / 2, 'dbdd': 1 / 2, 'fbdd': -1 / 2,
-                            'eaff': 1 / 2, 'aeee': 1 / 2, 'bfff': -1 / 2}]  # eq 4.16 (idx: 28)
-
-final_entries_multiterm_rel_table = [{'bf': 1, 'bd': -1},  # eq 4.7 (2) (idx: 19)
-                           {'cdd': 1, 'cee': 1},  # eq 4.8 (1) (idx: 20)
-                           {'ddbd': 1, 'dbdd': -1},  # eq 4.12 (idx: 21)
-                           {'cbdd': 1, 'cdbd': -1},  # eq 4.15(1) (idx: 22)
-                           {'fbd': 1, 'dbd': -1, 'bdd': 1},  # eq 4.8 (2) (idx: 23)
-                           {'bddd': 1, 'faff': 1, 'dbdd': -1, 'eaff': -1, 'fbdd': 1, 'aeee': -1},  # eq 4.13 (idx: 24)
-                           {'abdd': 1, 'cddd': -1 / 2, 'dcee': -1 / 2, 'aeee': 1 / 2, 'eaff': 1 / 2, 'faff': -1 / 2,
-                            'ecee': 1 / 2},  # eq 4.14 (idx: 25)
-                           {'cbdd': 1, 'bfff': -1 / 2, 'dcee': 1 / 2, 'ecee': -1 / 2, 'cddd': 1 / 2, 'dbdd': 1 / 2,
-                            'fbdd': -1 / 2},  # eq 4.15(2) (idx: 26)
-                           {'cdbd': 1, 'bfff': -1 / 2, 'dcee': 1 / 2, 'ecee': -1 / 2, 'cddd': 1 / 2, 'dbdd': 1 / 2,
-                            'fbdd': -1 / 2},  # eq 4.15(3) (idx: 27)
-                           {'fbbd': 1, 'dbbd': -1, 'bbdd': 1, 'faff': -1 / 2, 'dbdd': 1 / 2, 'fbdd': -1 / 2,
-                            'eaff': 1 / 2, 'aeee': 1 / 2, 'bfff': -1 / 2}]  # eq 4.16 (idx: 28)
-
-
-# multi-initial-entries relations: plus dihedral symmetry
-# new order: one-term relations, short relations (<=4 terms), long relations (>4 terms).
-initial_entries_rel_table = [{'ad': 1},
-                           {'aad': 1},{'bcf': 1},{'bde': 1},{'bdf': 1},{'bda': 1},{'abd': 1},
-                           {'cb': 1, 'bc': -1},
-                           {'cd': 1, 'bd': -1},
-                           {'aaf': 1, 'bbf': 1, 'abf': -1},
-                           {'aab': 1,'aac': 1,'cca': 1,'bba': -1,'aba': -1},
-                           {'bba': 1,'bbc': 1,'ccb': 1,'aab': -1,'abb': -1},
-                           {'abc': 1,'aac': 1,'bbc': 1,'cca': 1,'ccb': 1},
-                           {'aac': 1,'cca': 1,'bbc': -1,'ccb': -1,'afa': 1 / 2,'aaf': -1 / 2,'bbf': 1 / 2,'afb': -1 / 2}]
-
-def trivial_zero_rel_table(format="full"):
-
-    myrel_table = first_entry_rel_table
-    slots = [0]*len(first_entry_rel_table)
-
-    if format == "full":
-        myrel_table += final_entries_rel_table[:3]
-        slots += [-1]*len(final_entries_rel_table[:3])
-
-    steinmanns = get_rel_table_dihedral(double_adjacency_rel_table)
-
-    myrel_table += steinmanns
-    slots += [None]*len(steinmanns)
-    return myrel_table,slots
 
 
 ##############################################################################################
@@ -844,7 +869,6 @@ def get_rel_table_dihedral(rel_table):
     return unique_rel_table_dihedral
 
 
-
 ##############################################################################################
 # GET TERMS IN SYMBOL RELATED BY CERTAIN RELATIONS #
 ##############################################################################################
@@ -896,7 +920,6 @@ def update_rel_instances_in_symb(rel_instance_in_symb_list, symb):
     if rel_instance_in_symb_list is None:
         return None
 
-
     for rel_instance in rel_instance_in_symb_list:
         rel_instance_in_symb = {}
         for word, coeff_pair in rel_instance.items():
@@ -928,7 +951,7 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
     rel_terms_list = []
     nterm = len(rel)
     nletter = len(next(iter(rel)))  # number of letters in each term
-    if format not in ["full","quad","oct"]:
+    if format not in ["full", "quad", "oct"]:
         print("Error, bad format!")
         raise ValueError
 
@@ -943,8 +966,8 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
                 rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[:nletter]]]})
                 rel_terms_list.append(rel_terms)
                 return rel_terms_list
-        else: # compact formats
-            if word[1:nletter] not in rel: # ignore the prefix
+        else:  # compact formats
+            if word[1:nletter] not in rel:  # ignore the prefix
                 return rel_terms_list
             else:
                 rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[1:nletter]]]})
@@ -962,14 +985,13 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
                 rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[:nletter]]]})
                 rel_terms_list.append(rel_terms)
                 return rel_terms_list
-        else: # compact formats
-            if word[1:nletter] not in rel: # ignore the prefix
+        else:  # compact formats
+            if word[1:nletter] not in rel:  # ignore the prefix
                 return rel_terms_list
             else:
                 rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[1:nletter]]]})
                 rel_terms_list.append(rel_terms)
                 return rel_terms_list
-
 
     # final entries relation
     if rel_slot == 'final':
@@ -977,17 +999,17 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
 
         if format == 'full':
             if word[-nletter:] not in rel:
-                    return rel_terms_list
+                return rel_terms_list
 
             for key in rel:
                 if word[-nletter:] == key:
                     pre_subword = word[:-nletter]
                     for key_rel in rel:
-                        word_rel = pre_subword+key_rel
-                        rel_terms.update({word_rel:[get_coeff_from_word(word_rel, symb), rel[key_rel]]})
+                        word_rel = pre_subword + key_rel
+                        rel_terms.update({word_rel: [get_coeff_from_word(word_rel, symb), rel[key_rel]]})
                     rel_terms_list.append(rel_terms)
                     return rel_terms_list
-        else: # compact formats: no final entries relations
+        else:  # compact formats: no final entries relations
             return None
 
     # relations that can be at any position slot
@@ -997,11 +1019,10 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
 
         if format == 'full':
             word = word
-            prefix=''
-        else: # compact formats
+            prefix = ''
+        else:  # compact formats
             prefix = word[0]
             word = word[1:]
-
 
         if not any(key_rel in word for key_rel in key_rel_list):
             # rel_terms = {}
@@ -1010,7 +1031,7 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
 
         for key_rel in rel:
             if key_rel in word:
-                start_pos_list = [i.start() for i in find_all(word,key_rel)]
+                start_pos_list = [i.start() for i in find_all(word, key_rel)]
                 rel_terms_pos = []
 
                 for start_pos in start_pos_list:
@@ -1021,9 +1042,9 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
 
                     for key_rel in rel:
                         if format == 'full':
-                            word_rel = pre_subword+key_rel+post_subword
-                        else: # compact formats
-                            word_rel = prefix+pre_subword+key_rel+post_subword
+                            word_rel = pre_subword + key_rel + post_subword
+                        else:  # compact formats
+                            word_rel = prefix + pre_subword + key_rel + post_subword
                         rel_terms.update({word_rel: [get_coeff_from_word(word_rel, symb), rel[key_rel]]})
 
                     rel_terms_pos.append(rel_terms)
@@ -1033,7 +1054,7 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
         return list(itertools.chain(*rel_terms_list))
 
 
-def get_rel_terms_in_symb(symb, fraction, rel, rel_slot='any', format='full',seed=0):
+def get_rel_terms_in_symb(symb, fraction, rel, rel_slot='any', format='full', seed=0):
     '''
     Get the related term(s) in the given symbol according to the specified relation,
     for a fraction of words in the full symbol.
@@ -1069,11 +1090,10 @@ def get_rel_terms_in_symb(symb, fraction, rel, rel_slot='any', format='full',see
             return None
         for rel_terms in rel_terms_list:
             if (rel_terms) and (
-            not any([rel_terms == existing_rel_terms for existing_rel_terms in rel_terms_list_symb])):
+                    not any([rel_terms == existing_rel_terms for existing_rel_terms in rel_terms_list_symb])):
                 rel_terms_list_symb.append(rel_terms)
 
     return rel_terms_list_symb
-
 
 
 ##############################################################################################
@@ -1103,7 +1123,9 @@ def get_relsum_and_nzero(rel_terms_list, nterm, p_norm):
             except ArithmeticError:
                 print("overflow error! setting rel sum to -1")
                 relsum = -1
-        yield relsum,n_nontrivial0_term
+        yield relsum, n_nontrivial0_term
+
+
 def check_rel(rel_terms_list, return_rel_info=False, p_norm=None):
     '''
     Check if all relations in the input list of relations are satisfied, i.e., sum up to 0.
@@ -1130,8 +1152,8 @@ def check_rel(rel_terms_list, return_rel_info=False, p_norm=None):
     nterm = len(rel_terms_list[0])
     if rel_terms_list is None:
         return None
-    #TODO: check this!
-    relsum_list, relnontrivial0_list = zip(*[(elem) for elem in get_relsum_and_nzero(rel_terms_list,p_norm)])
+    # TODO: check this!
+    relsum_list, relnontrivial0_list = zip(*[(elem) for elem in get_relsum_and_nzero(rel_terms_list, p_norm)])
 
     if not relsum_list:
         percent = None
@@ -1147,177 +1169,11 @@ def check_rel(rel_terms_list, return_rel_info=False, p_norm=None):
     return percent
 
 
-
-##############################################################################################
-# WORD-ORIENTED APPROACH (works at 5 loops, but not scalable!) #
-##############################################################################################
+rels_to_check_default = {'first': [0.1, 0.1, 0.1], 'double': [0.1, 0.1, 0.1], 'triple': [0.1],
+                         'final': [0.1] * 29, 'integral': [0.01, 0.01, 0.01]}
 
 
-# The default relations to check in the format of {rel name: [frac, ..., frac]}, 
-# where frac (0-1) is the fraction of the total words in a symbol to be checked  
-# and the list order follows rel ID as defined in the relation tables. 
-# If some rel ID is not to be checked, then set its corresponding frac to 0.
-# Can be modified according to the user's needs. 
-
-rels_to_check_default = {'first': [0.1, 0.1, 0.1], 'double': [0.1, 0.1, 0.1], 'triple': [0.1], 
-                         'final': [0.1]*29, 'integral': [0.01, 0.01, 0.01]}
-
-
-def assess_rels_viaword(symb, symb_truth, rels_to_check, p_norm=None, format='full', seed=0):
-    '''
-    Assess the success rate of a set of user-specified relations for a given symbol (usually model predictions),
-    thru rels_to_check for word-oriented approach.
-    One symbol only, which means one epoch model output.
-    ---------
-    INPUTS:
-    symb: dict; usually model predictions.
-    symb_truth: dict; truth symbol.
-    rels_to_check: dict; user-defined relations to check; formats same as the two defaults defined above.
-    p_norm: float or None; p is the average accuracy of model prediction;
-            goal is to normalize the accuracy by the number of terms in a relation; default None.
-    format: string; different formats to represent the words;
-            only accept three choices---'full', 'quad', 'oct';
-            if format is 'full', then can use `rels_to_check_full_default`;
-            if format is 'quad' or 'oct, then can use `rels_to_check_compact_default`;
-            note that here relations living across the seam are not considered, i.e.,
-            only relations among exposed letters are considered; the format prefix is generated randomly.
-    seed: int; random number generating seed; default 0;
-          in principle, can even have a seed_list for different relations (currently not implemented).
-
-    OUTPUTS:
-    rel_acc: dict; format: {rel ID: [percent, percent_allcorrect, percent_magcorrect, percent_signcorrect, num_rels]},
-                    where percent is the percent of correct relations,
-                    percent_allcorrect is the percent of correct relations with all its coeffs correct,
-                    percent_magcorrect is the percent of correct relations with all its coeffs mag-correct,
-                    percent_signcorrect is the percent of correct relations with all its coeffs sign-correct,
-                    and num_rels is the number of relation instances.
-    '''
-    print('Assessment via word approach starts at: ', datetime.datetime.now())
-    rel_acc = {}
-    for rel_key, rel_frac_list in rels_to_check.items():
-        if rel_key == 'first':
-            for i in range(len(rel_frac_list)):
-                rel_term_in_symb_list = get_rel_terms_in_symb(symb, rel_frac_list[i], first_entry_rel_table[i],
-                                                              rel_slot='first', format=format, seed=seed)
-                percent = check_rel(rel_term_in_symb_list, return_rel_info=False, p_norm=p_norm)
-                percent_allcorrect, percent_magcorrect, percent_signcorrect = check_coeffs_in_rel(rel_term_in_symb_list,
-                                                                                                  symb_truth,
-                                                                                                  return_counts=False)
-                rel_acc.update({'first{}'.format(i): [percent, percent_allcorrect, percent_magcorrect,
-                                                      percent_signcorrect, len(rel_term_in_symb_list)]})
-            print('First entry relations done at: ', datetime.datetime.now())
-
-        if rel_key == 'double':
-            for i in range(len(rel_frac_list)):
-                rel_term_in_symb_list = get_rel_terms_in_symb(symb, rel_frac_list[i], double_adjacency_rel_table[i],
-                                                              rel_slot='any', format=format, seed=seed)
-                percent = check_rel(rel_term_in_symb_list, return_rel_info=False, p_norm=p_norm)
-                percent_allcorrect, percent_magcorrect, percent_signcorrect = check_coeffs_in_rel(rel_term_in_symb_list,
-                                                                                                  symb_truth,
-                                                                                                  return_counts=False)
-                rel_acc.update({'double{}'.format(i): [percent, percent_allcorrect, percent_magcorrect,
-                                                       percent_signcorrect, len(rel_term_in_symb_list)]})
-            print('Double adjacency relations done at: ', datetime.datetime.now())
-
-        if rel_key == 'triple':
-            for i in range(len(rel_frac_list)):
-                rel_term_in_symb_list = get_rel_terms_in_symb(symb, rel_frac_list[i], triple_adjacency_rel_table[i],
-                                                              rel_slot='any', format=format, seed=seed)
-                percent = check_rel(rel_term_in_symb_list, return_rel_info=False, p_norm=p_norm)
-                percent_allcorrect, percent_magcorrect, percent_signcorrect = check_coeffs_in_rel(rel_term_in_symb_list,
-                                                                                                  symb_truth,
-                                                                                                  return_counts=False)
-                rel_acc.update({'triple{}'.format(i): [percent, percent_allcorrect, percent_magcorrect,
-                                                       percent_signcorrect, len(rel_term_in_symb_list)]})
-            print('Triple adjacency relations done at: ', datetime.datetime.now())
-
-        if rel_key == 'final':
-            for i in range(len(rel_frac_list)):
-                rel_term_in_symb_list = get_rel_terms_in_symb(symb, rel_frac_list[i], final_entries_rel_table[i],
-                                                              rel_slot='final', format=format, seed=seed)
-                percent = check_rel(rel_term_in_symb_list, return_rel_info=False, p_norm=p_norm)
-                percent_allcorrect, percent_magcorrect, percent_signcorrect = check_coeffs_in_rel(rel_term_in_symb_list,
-                                                                                                  symb_truth,
-                                                                                                  return_counts=False)
-                rel_acc.update({'final{}'.format(i): [percent, percent_allcorrect, percent_magcorrect,
-                                                      percent_signcorrect, len(rel_term_in_symb_list)]})
-            print('Final entries relations done at: ', datetime.datetime.now())
-
-        if rel_key == 'integral':
-            for i in range(len(rel_frac_list)):
-                rel_term_in_symb_list = get_rel_terms_in_symb(symb, rel_frac_list[i], integral_rel_table[i],
-                                                              rel_slot='any', format=format, seed=seed)
-                percent = check_rel(rel_term_in_symb_list, return_rel_info=False, p_norm=p_norm)
-                percent_allcorrect, percent_magcorrect, percent_signcorrect = check_coeffs_in_rel(rel_term_in_symb_list,
-                                                                                                  symb_truth,
-                                                                                                  return_counts=False)
-                rel_acc.update({'integral{}'.format(i): [percent, percent_allcorrect, percent_magcorrect,
-                                                         percent_signcorrect, len(rel_term_in_symb_list)]})
-            print('Integrability relations done at: ', datetime.datetime.now())
-
-        if rel_key == 'initial':
-            for i in range(len(rel_frac_list)):
-                rel_term_in_symb_list = get_rel_terms_in_symb(symb, rel_frac_list[i], initial_entries_rel_table[i],
-                                                              rel_slot='initial', format=format, seed=seed)
-                percent = check_rel(rel_term_in_symb_list, return_rel_info=False, p_norm=p_norm)
-                percent_allcorrect, percent_magcorrect, percent_signcorrect = check_coeffs_in_rel(rel_term_in_symb_list,
-                                                                                                  symb_truth,
-                                                                                                  return_counts=False)
-                rel_acc.update({'initial{}'.format(i): [percent, percent_allcorrect, percent_magcorrect,
-                                                      percent_signcorrect, len(rel_term_in_symb_list)]})
-            print('Initial entries relations done at: ', datetime.datetime.now())
-    return rel_acc
-    
-##############################################################################################
-# RELATION-ORIENTED APPROACH #
-##############################################################################################
-
-
-def assess_rels_viarel(symb, symb_truth, inpath, p_norm=None):
-    '''
-    Assess the success rate of a set of user-specified relations for a given symbol (usually model predictions),
-    thru the stored relation instances for relation-oriented approach.
-    One symbol only, which means one epoch model output.
-    ---------
-    INPUTS:
-    symb: dict; usually model predictions.
-    symb_truth: dict; truth symbol.
-    inpath: str; folder path for rel_data.
-    p_norm: float or None; p is the average accuracy of model prediction;
-            goal is to normalize the accuracy by the number of terms in a relation; default None.
-
-    OUTPUTS:
-    rel_acc: dict; format: {rel ID: [percent, percent_allcorrect, percent_magcorrect, percent_signcorrect, num_rels]},
-                    where percent is the percent of correct relations,
-                    percent_allcorrect is the percent of correct relations with all its coeffs correct,
-                    percent_magcorrect is the percent of correct relations with all its coeffs mag-correct,
-                    percent_signcorrect is the percent of correct relations with all its coeffs sign-correct,
-                    and num_rels is the number of relation instances.
-    '''
-    print('Assessment via relation approach starts at: ', datetime.datetime.now())
-    rel_acc = {}
-
-    for filename in os.listdir(inpath):
-        if filename.endswith('.txt'): continue
-        print('Assessing relation file {} ...'.format(filename))
-        parts = filename.split("_")
-        rel_key = parts[-1].split(".")[0]
-
-        file_path = os.path.join(inpath, filename)
-        if os.path.isfile(file_path) and filename.endswith('.json'):
-            with open(file_path, 'r') as openfile:
-                rel_instance_list = json.load(openfile)
-
-                rel_instance_in_symb_list = update_rel_instances_in_symb(rel_instance_list, symb)
-                percent = check_rel(rel_instance_in_symb_list, return_rel_info=False, p_norm=p_norm)
-                percent_allcorrect, percent_magcorrect, percent_signcorrect = check_coeffs_in_rel(rel_instance_in_symb_list, symb_truth, return_counts=False)
-                rel_acc.update({rel_key: [percent, percent_allcorrect, percent_magcorrect, percent_signcorrect, len(rel_instance_in_symb_list)]})
-
-    print('Assessment via relation approach ends at: ', datetime.datetime.now())
-    return rel_acc
-
-
-def check_coeffs_in_rel(rel_terms_list, symb_truth_list, return_counts=False,require_satisfied=True):
+def check_coeffs_in_rel(rel_terms_list, symb_truth_list, return_counts=False, require_satisfied=True):
     '''
     Check if all relations in the input list of relations are satisfied, i.e., sum up to 0.
     Valid regardless of the sampling approach, i.e., word-oriented or relation-oriented.
@@ -1343,12 +1199,12 @@ def check_coeffs_in_rel(rel_terms_list, symb_truth_list, return_counts=False,req
     if rel_terms_list is None:
         return None
 
-    for rel_terms, symb_truth in zip(rel_terms_list,symb_truth_list):
+    for rel_terms, symb_truth in zip(rel_terms_list, symb_truth_list):
         relsum = 0
         n_allcorrect, n_magcorrect, n_signcorrect = 0, 0, 0
         nterm = len(rel_terms)
 
-        for (key, value), (truth_key, truth_value) in zip(rel_terms.items(),symb_truth.items()):
+        for (key, value), (truth_key, truth_value) in zip(rel_terms.items(), symb_truth.items()):
             if value[0] == None:  # invalid symb_coeff
                 relsum = -1
             else:
@@ -1407,6 +1263,8 @@ def check_coeffs_in_rel(rel_terms_list, symb_truth_list, return_counts=False,req
         return percent_allcorrect, percent_magcorrect, percent_signcorrect, correct_coeffs_in_rel_list
 
     return percent_allcorrect, percent_magcorrect, percent_signcorrect
+
+
 ##############################################################################################
 # ZERO SAMPLING  #
 ##############################################################################################
@@ -1422,21 +1280,20 @@ def is_trivial0(word):
     OUTPUTS:
     True/False: bool.
     '''
-    for rel in first_entry_rel_table: # prefix rule
+    for rel in first_entry_rel_table:  # prefix rule
         if word[0] in rel:
             return True
 
-    for rel in final_entries_rel_table[:3]: # suffix rule
+    for rel in final_entries_rel_table[:3]:  # suffix rule
         if word[-1] in rel:
             return True
 
-    for rel in get_rel_table_dihedral(double_adjacency_rel_table): # adjacency rule
+    for rel in get_rel_table_dihedral(double_adjacency_rel_table):  # adjacency rule
         for rel_key in rel:
             if rel_key in word:
                 return True
 
     return False
-
 
 
 def replace_trivial0_terms(symb, return_symb=False):
@@ -1467,3 +1324,5 @@ def replace_trivial0_terms(symb, return_symb=False):
 
     if return_symb:
         return symb_updated
+
+
