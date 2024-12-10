@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import tempfile
 import tarfile
-from importlib import resources
 from pathlib import Path
 
 import requests
@@ -15,16 +14,15 @@ zipurl = "https://github.com/AIAmplitudes/data_public"
 
 def _cache_path(cache_dir: str | None = None) -> Path:
     if cache_dir is None:
-        skhepdir = Path.home() / ".local" / "AIAmplitudesData"
-        skhepdir.mkdir(exist_ok=True, parents=True)
-        return skhepdir
-
+        ampdir = Path.home() / ".local" / "AIAmplitudesData"
+        ampdir.mkdir(exist_ok=True, parents=True)
+        return ampdir
     return Path(cache_dir)
 
+local_default = _cache_path(None)
 
 def download_all(cache_dir: str | None = None) -> None:
     local_dir = _cache_path(cache_dir)
-
     with tempfile.TemporaryFile() as f:
         with requests.get(zipurl, stream=True) as r:
             r.raise_for_status()

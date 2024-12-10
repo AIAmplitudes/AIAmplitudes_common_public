@@ -1,7 +1,57 @@
 import re,os
+import tempfile
+import tarfile
+from pathlib import Path
+import requests
+from bs4 import BeautifulSoup
+import json
+DIR = Path(__file__).parent.resolve()
 
-os.pwd()
-relpath='./data'
+def get_url_paths(url, ext='', params={}):
+    response = requests.get(url, params=params)
+    if response.ok:
+        response_text = response.text
+    else:
+        return response.raise_for_status()
+    soup = BeautifulSoup(response_text, 'html.parser')
+    parent = [url + node.get('href') for node in soup.find_all('a') if node.get('href').endswith(ext)]
+    return parent
+
+
+def _cache_path(cache_dir: str | None = None) -> Path:
+    if cache_dir is None:
+        ampdir = Path.home() / ".local" / "AIAmplitudesData"
+        ampdir.mkdir(exist_ok=True, parents=True)
+        return ampdir
+    return Path(cache_dir)
+
+relpath = _cache_path(None)
+txtstub = "https://github.com/"
+rawstub = "https://api.github.com/"
+zip_path = "AIAmplitudes/data_public"
+
+def get_gitfiles(the_zipurl):
+    soup = BeautifulSoup(requests.get(the_zipurl).text)
+    files=[]
+    for elem in soup.find_all('script', type='application/json'):
+        if ".tar" in elem.text:
+            files += [i["name"] for i in json.loads(elem.contents[0])["props"]["initialPayload"]["tree"]["items"]]
+    return files
+
+def download_all(cache_dir: str | None = None) -> None:
+    local_dir = _cache_path(cache_dir)
+    url=txtstub+zip_path
+    for file in get_gitfiles(url):
+        myfile = rawstub + zip_path +"/"+file
+        with tempfile.TemporaryFile() as f:
+            with requests.get(myfile, stream=True) as r:
+                r.raise_for_status()
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            with tarfile.TarFile(f) as z:
+                z.extractall(local_dir)
+    os.listdir(local_dir)
+    return
 
 def convert(filename, loop=None, reptype=None):
     #reptype: quad, oct, ae, aef, None
