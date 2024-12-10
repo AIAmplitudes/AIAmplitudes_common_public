@@ -1,5 +1,6 @@
 import re,os
 
+os.pwd()
 relpath='./data'
 
 def convert(filename, loop=None, reptype=None):
