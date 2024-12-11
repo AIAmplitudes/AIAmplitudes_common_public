@@ -5,19 +5,8 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 import json
-DIR = Path(__file__).parent.resolve()
 
-def get_url_paths(url, ext='', params={}):
-    response = requests.get(url, params=params)
-    if response.ok:
-        response_text = response.text
-    else:
-        return response.raise_for_status()
-    soup = BeautifulSoup(response_text, 'html.parser')
-    parent = [url + node.get('href') for node in soup.find_all('a') if node.get('href').endswith(ext)]
-    return parent
-
-
+################### Download tarballs from git ###############################
 def _cache_path(cache_dir: str | None = None) -> Path:
     if cache_dir is None:
         ampdir = Path.home() / ".local" / "AIAmplitudesData"
@@ -26,10 +15,9 @@ def _cache_path(cache_dir: str | None = None) -> Path:
     return Path(cache_dir)
 
 relpath = _cache_path(None)
-txtstub = "https://github.com/AIAmplitudes/data_public"
-rawstub = "https://raw.githubusercontent.com/AIAmplitudes/data_public/tree/main"
+public_repo =  "AIAmplitudes/data_public"
 
-def get_gitfiles(the_zipurl):
+def get_gitfilenames(the_zipurl):
     soup = BeautifulSoup(requests.get(the_zipurl).text)
     files=[]
     for elem in soup.find_all('script', type='application/json'):
@@ -37,20 +25,33 @@ def get_gitfiles(the_zipurl):
             files += [i["name"] for i in json.loads(elem.contents[0])["props"]["initialPayload"]["tree"]["items"]]
     return files
 
-def download_all(cache_dir: str | None = None) -> None:
-    local_dir = _cache_path(cache_dir)
-    url=txtstub
-    for file in get_gitfiles(url):
-        myfile = rawstub +"/"+file
-        with tempfile.TemporaryFile() as f:
-            with requests.get(myfile, stream=True) as r:
-                r.raise_for_status()
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            with tarfile.TarFile(f) as z:
-                z.extractall(local_dir)
-    os.listdir(local_dir)
+def download_unpack(myfile: str, local_dir: Path):
+    with tempfile.TemporaryFile() as f:
+        with requests.get(myfile, stream=True) as r:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        f.seek(0)
+        with tarfile.open(fileobj=f) as tarf:
+            for n in tarf.getnames():
+                assert os.path.abspath(os.path.join(local_dir, n)).startswith(str(local_dir))
+            tarf.extractall(path=local_dir)
     return
+
+def download_all(repo: str = public_repo, cache_dir: str | None = None) -> None:
+    local_dir = _cache_path(cache_dir)
+    if not len(os.listdir(local_dir))==0:
+        print("error! local cache not empty!")
+        raise ValueError
+    print(f"downloading files from {repo}, unpacking in {local_dir}")
+    url=f"https://github.com/{repo}"
+    for file in get_gitfilenames(url):
+        if not ".tar" in file: continue
+        myfile = f"https://raw.githubusercontent.com/{repo}/main/{file}"
+        print(f"extracting {myfile}")
+        download_unpack(myfile,local_dir)
+    return
+
+#######################################################################################
 
 def convert(filename, loop=None, reptype=None):
     #reptype: quad, oct, ae, aef, None
