@@ -26,9 +26,8 @@ def _cache_path(cache_dir: str | None = None) -> Path:
     return Path(cache_dir)
 
 relpath = _cache_path(None)
-txtstub = "https://github.com/"
-rawstub = "https://api.github.com/"
-zip_path = "AIAmplitudes/data_public"
+txtstub = "https://github.com/AIAmplitudes/data_public"
+rawstub = "https://raw.githubusercontent.com/AIAmplitudes/data_public/tree/main"
 
 def get_gitfiles(the_zipurl):
     soup = BeautifulSoup(requests.get(the_zipurl).text)
@@ -40,9 +39,9 @@ def get_gitfiles(the_zipurl):
 
 def download_all(cache_dir: str | None = None) -> None:
     local_dir = _cache_path(cache_dir)
-    url=txtstub+zip_path
+    url=txtstub
     for file in get_gitfiles(url):
-        myfile = rawstub + zip_path +"/"+file
+        myfile = rawstub +"/"+file
         with tempfile.TemporaryFile() as f:
             with requests.get(myfile, stream=True) as r:
                 r.raise_for_status()
