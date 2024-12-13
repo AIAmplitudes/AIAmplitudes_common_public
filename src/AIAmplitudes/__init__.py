@@ -15,17 +15,22 @@ def Phi2Symb(L, type=None):
         return symb
     elif type == "quad":
         if L < 2:
-            print("cannot encode uncompressed!")
+            print("cannot encode quad!")
             raise ValueError
         if L < 7:
             symb = convert(f'{relpath}/EZ_symb_quad_new_norm', L, "quad")
         elif L == 7: symb = convert(f'{relpath}/EZ7_symb_quad_new_norm', L, "quad")
+        else: raise ValueError
         return symb
     elif type == "oct":
+        if L < 4:
+            print("cannot encode oct!")
+            raise ValueError
         if L < 8:
             symb = convert(f'{relpath}/EZ_symb_oct_new_norm', L, "oct")
-        else:
+        elif L==8:
             symb = convert(f'{relpath}/EZ8_symb_oct_new_norm', L, "oct")
+        else: raise ValueError
         return symb
     else: return
 
