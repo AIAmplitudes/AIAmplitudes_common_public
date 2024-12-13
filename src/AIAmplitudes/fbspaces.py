@@ -2,6 +2,7 @@ import re
 import os
 from fractions import Fraction
 from AIAmplitudes.file_readers import readSymb, SB_to_dict,relpath
+relpath = f"{str(relpath)}/FBSewData/frontbackspaces/"
 
 bspacenames = {1: 'singleindep3',
                2: 'doubleindep6',
@@ -80,14 +81,14 @@ def get_rest_fspace(w):
 
 
 def getBrel_eqs(f, w):
-    res = readFile(f, str(brelnames[w]))
+    res = readSymb(f, str(brelnames[w]))
     out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
                                                         re.sub(',\s*(?=[^()]*\))', '', res))[1:]]
     return out
 
 
 def getFrel_eqs(f, w):
-    res = readFile(f, str(frelnames[w]))
+    res = readSymb(f, str(frelnames[w]))
     out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
                                                         re.sub(',\s*(?=[^()]*\))', '', res))[1:]]
     return out

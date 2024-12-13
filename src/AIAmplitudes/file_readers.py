@@ -49,6 +49,23 @@ def download_all(repo: str = public_repo, cache_dir: str | None = None) -> None:
         myfile = f"https://raw.githubusercontent.com/{repo}/main/{file}"
         print(f"extracting {myfile}")
         download_unpack(myfile,local_dir)
+
+    #dump all files into the root directory
+    for subdir, dirs, files in os.walk(local_dir):
+        for file in files:
+            os.rename(str(os.path.join(subdir, file)),str(os.path.join(local_dir, file)))
+
+    #delete all subdirs that do not have a file in them
+    deleted=set()
+    for thisdir, subdirs, files in os.walk(local_dir, topdown=False):
+        still_has_subdirs = False
+        for subdir in subdirs:
+            if os.path.join(thisdir, subdir) not in deleted:
+                still_has_subdirs = True
+                break
+        if not any(files) and not still_has_subdirs:
+            os.rmdir(thisdir)
+            deleted.add(thisdir)
     return
 
 #######################################################################################
