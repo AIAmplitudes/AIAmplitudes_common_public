@@ -242,3 +242,4 @@ def bool_flag(s):
         return True
     else:
         raise argparse.ArgumentTypeError("Invalid value for a boolean flag!")
+

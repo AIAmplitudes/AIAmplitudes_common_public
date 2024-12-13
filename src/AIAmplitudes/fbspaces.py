@@ -2,7 +2,6 @@ import re
 import os
 from fractions import Fraction
 from AIAmplitudes.file_readers import readSymb, SB_to_dict,relpath
-relpath = f"{str(relpath)}/FBSewData/frontbackspaces/"
 
 bspacenames = {1: 'singleindep3',
                2: 'doubleindep6',

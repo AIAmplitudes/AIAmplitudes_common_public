@@ -3,12 +3,31 @@ from AIAmplitudes.polynomial_utils import polynom_convert, get_runpolynomials, g
 from AIAmplitudes.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace
 from AIAmplitudes.fbspaces import get_rest_fspace,get_rest_bspace
 
-def Phi2Symb(L):
-    if L==6:
-        symb = convert(f'{relpath}/EZ6_symb_new_norm', L)
-    else:
-        symb  = convert(f'{relpath}/EZ_symb_new_norm',L)
-    return symb
+def Phi2Symb(L, type=None):
+    if not type:
+        if L > 6:
+            print("cannot encode uncompressed!")
+            raise ValueError
+        if L==6:
+            symb = convert(f'{relpath}/EZ6_symb_new_norm', L)
+        else:
+            symb  = convert(f'{relpath}/EZ_symb_new_norm',L)
+        return symb
+    elif type == "quad":
+        if L < 2:
+            print("cannot encode uncompressed!")
+            raise ValueError
+        if L < 7:
+            symb = convert(f'{relpath}/EZ_symb_quad_new_norm', L, "quad")
+        elif L == 7: symb = convert(f'{relpath}/EZ7_symb_quad_new_norm', L, "quad")
+        return symb
+    elif type == "oct":
+        if L < 8:
+            symb = convert(f'{relpath}/EZ_symb_oct_new_norm', L, "oct")
+        else:
+            symb = convert(f'{relpath}/EZ8_symb_oct_new_norm', L, "oct")
+        return symb
+    else: return
 
 def Phi3Symb(L):
     if L==6:

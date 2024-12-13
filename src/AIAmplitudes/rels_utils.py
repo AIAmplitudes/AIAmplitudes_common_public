@@ -118,6 +118,26 @@ def table_to_rels(table):
 pair_rels=table_to_rels(pair_table)
 triple_rels=table_to_rels(triple_table)
 ############################################################################################################
+def sumstring(i, mystring, k, v):
+    if v == 1:
+        if i == 0:
+            mystring += f'{k}'
+        else:
+            mystring += f'+{k}'
+    elif v == -1:
+        mystring += f'-{k}'
+    elif v > 0:
+        if i == 0:
+            mystring += f'{v}*{k}'
+        else:
+            mystring += f'+{v}*{k}'
+    elif v < 0:
+        mystring += f'{v}*{k}'
+    else:
+        mystring = mystring
+
+    return mystring
+
 def sumdict(k, d1, d2):
     out = {}
     for k in d1 | d2:

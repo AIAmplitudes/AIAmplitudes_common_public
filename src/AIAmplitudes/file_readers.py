@@ -40,8 +40,8 @@ def download_unpack(myfile: str, local_dir: Path):
 def download_all(repo: str = public_repo, cache_dir: str | None = None) -> None:
     local_dir = _cache_path(cache_dir)
     if not len(os.listdir(local_dir))==0:
-        print("error! local cache not empty!")
-        raise ValueError
+        print("Local cache not empty! Terminating")
+        return
     print(f"downloading files from {repo}, unpacking in {local_dir}")
     url=f"https://github.com/{repo}"
     for file in get_gitfilenames(url):
