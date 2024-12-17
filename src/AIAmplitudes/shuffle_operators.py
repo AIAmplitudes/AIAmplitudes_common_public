@@ -1,8 +1,8 @@
 import numpy as np
 from collections import Counter
-from commonclasses import Symb
+from AIAmplitudes.commonclasses import Symb
 import itertools
-from rels_utils import kbits,count_zeros,is_ok_phi2,is_ok_phi3,is_ok
+from AIAmplitudes.rels_utils import kbits,count_zeros,is_ok_phi2,is_ok_phi3,is_ok
 
 #####################################################################################
 #TODO: ADD deconcatenation & concatenation coproducts, 'cut-shuffle', other coproduct variants

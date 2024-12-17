@@ -1,4 +1,4 @@
-from AIAmplitudes.file_readers import relpath,convert
+from AIAmplitudes.file_readers import relpath,convert,get_relpermdict
 from AIAmplitudes.polynomial_utils import polynom_convert, get_runpolynomials, get_polynomialcoeffs
 from AIAmplitudes.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace
 from AIAmplitudes.fbspaces import get_rest_fspace,get_rest_bspace
@@ -53,11 +53,23 @@ def runpolynomials(type=None):
     else:
         return get_runpolynomials()
 
-def brels():
-    get_brels(relpath)
+def br_rels(w,mydir=relpath):
+    return get_brels(w,mydir)
 
-def frels():
-    get_frels(relpath)
+def fr_rels(w,mydir=relpath):
+    return get_frels(w,mydir)
+
+def fp_1l_rels(w,mydir=relpath):
+    return get_relpermdict(mydir, w, "front", "oneletter")
+
+def fp_2l_rels(w,mydir=relpath):
+    return get_relpermdict(mydir, w, "front", "twoletter")
+
+def bp_1l_rels(w,mydir=relpath):
+    return get_relpermdict(mydir, w, "back", "oneletter")
+
+def bp_2l_rels(w,mydir=relpath):
+    return get_relpermdict(mydir, w, "back", "twoletter")
 
 def fspace(w,rp="p"):
     if rp == "p": return get_perm_fspace(w)[0]
@@ -78,3 +90,5 @@ def bspace_flip(w,rp="p"):
     if rp == "p": return get_perm_bspace(w)[1]
     elif rp == "r": return get_rest_bspace(w)[1]
     else: return
+
+

@@ -1,6 +1,6 @@
 
 from itertools import permutations, islice
-from rels_utils import find_all
+from AIAmplitudes.rels_utils import find_all
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f']
 dihedral_table = [list(permutations(alphabet[:3]))[i] + list(permutations(alphabet[3:]))[i] for i in
