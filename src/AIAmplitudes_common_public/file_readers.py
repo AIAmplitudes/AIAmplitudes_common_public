@@ -131,10 +131,16 @@ def readcrel(crel, w=2, seam="back"):
             return Fraction(numstr[:-1])
             # else:return int(numstr[:-1])
 
+    def fractoint(frac):
+        if type(frac) is int:
+            return frac
+        elif type(frac) is Fraction:
+            return int(frac) if frac.denominator == 1 else frac
+
     myrel = re.split("c\[|\]", crel)[:-1]
     coefs = [elem for i, elem in enumerate(myrel) if i % 2 == 0]
     terms = [elem for i, elem in enumerate(myrel) if i % 2 == 1]
-    return {cterm_to_Fp(let): numstr_to_num(num) for num, let in zip(coefs, terms)}
+    return {cterm_to_Fp(let): fractoint(numstr_to_num(num)) for num, let in zip(coefs, terms)}
 
 def get_relpermdict(mydir, w, seam, reltype):
     return [readcrel(i, w, seam) for i in read_rels_perm(mydir, w, seam, reltype)]

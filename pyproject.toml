@@ -1,5 +1,5 @@
 [project]
-name = "AIAmplitudes"
+name = "AIAmplitudes_common_public"
 version = "0.0.2"
 authors = [
   { name="Garrett Merz", email="garrett.merz@wisc.edu" },
