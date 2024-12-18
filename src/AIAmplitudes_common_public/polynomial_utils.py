@@ -6,7 +6,7 @@ from sympy.parsing.sympy_parser import (
     standard_transformations,
     implicit_multiplication,
 )
-from AIAmplitudes.file_readers import readSymb,relpath
+from AIAmplitudes_common_public.file_readers import readSymb,relpath
 
 primes = list(primerange(0, 1000))
 

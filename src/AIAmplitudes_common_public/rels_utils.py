@@ -162,89 +162,6 @@ def find_all(a_str, sub):
         start += len(sub)
 
 
-def count_appearances(key, slot):
-    # the letter in slot is the Nth appearance, counting from left and starting the count at 1.
-    # returns N.
-    letter = key[slot]
-    return [i for i in find_all(key, letter)].index(slot) + 1
-
-
-def check_slot(word, substr, slotnum):
-    res = (word[slotnum: slotnum + len(substr)] == substr)
-    return res
-
-
-def update_counter(word, only_check_nonzeros, symb, min_overlap, count):
-    # if we need an overlap of more than 1, increment the counter
-    # otherwise, we're guaranteed an overlap of 1 if we draw from the symb, so don't bother
-    if min_overlap == 1:
-        count = 1
-    else:
-        if only_check_nonzeros == True:
-            # If the symb has zeros but we want to ignore them
-            if (word in symb) or (symb[word] == 0):
-                count += 1
-        else:
-            if word in symb:
-                count += 1
-    return count
-
-
-def is_triv_zero(word):
-    for i, letter in enumerate(word):
-        if i == len(word) - 1:
-            continue
-        else:
-            if word[i + 1] in steinmanns[letter]: return True
-    return False
-
-
-def is_ok_phi2(word):
-    if word[0] in 'def':
-        return False
-    elif word[-1] in 'abc':
-        return False
-    elif is_triv_zero(word):
-        return False
-    else:
-        return True
-
-
-def is_ok_phi3(word):
-    if word[0] in 'def':
-        return False
-    elif word[-1] in 'def':
-        return False
-    elif is_triv_zero(word):
-        return False
-    else:
-        return True
-
-
-def is_ok(word):
-    return True
-
-
-def count_ones(binlist):
-    i = 0
-    for elem in binlist:
-        if elem == 1: i += 1
-    return i
-
-
-def count_zeros(binlist):
-    i = 0
-    for elem in binlist:
-        if elem == 0: i += 1
-    return i
-
-
-def kbits(totsum, str_len):
-    for bits in itertools.combinations(range(str_len), totsum):
-        s = [0] * str_len
-        for bit in bits:
-            s[bit] = 1
-        yield s
 
 
 ###################################################################################
@@ -252,6 +169,12 @@ def kbits(totsum, str_len):
 # Auxiliary Functions
 #######################################################################################################################
 
+
+
+
+
+
+#needed
 def read_rel_info(rels_to_generate, make_zero_rels=False):
     '''
     Parse a rel_info dict.
@@ -300,130 +223,88 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
             overlaps.append(rel_info[1][i])
             relnames.append(f'{rel_key}_{i}')
     return rels, slots, to_gens, overlaps, relnames
+def get_coeff_from_word(word, symb):
+    '''
+    Get the coeff of a given word in a symbol.
+    ---------
+    INPUTS:
+    word: str; a string of letters such as 'aaae'.
+    symb: dict; a dictionary with word as key, and coeff as value, e.g., {'aaae':16, 'aaaf':16}.
 
+    OUTPUTS:
+    coeff: float; if word does not exist in symb, then return 0.
+    '''
+    if word in symb:
+        return symb[word]
+    return 0
+def get_word_from_coeff(coeff, symb):
+    '''
+    Get the words corresponding to a given coeff in a symbol.
+    ---------
+    INPUTS:
+    coeff: float; e.g., 16.
+    symb: dict; a dictionary with word as key, and coeff as value, e.g., {'aaae':16, 'aaaf':16}.
 
-def gen_next(letter):
-    # hardcode adjacency rules to generate nontrivial zeroes
-    if letter == 'a':
-        mylist = ['a', 'b', 'c', 'e', 'f']
-        letter = mylist[int(len(mylist) * random.random())]
-        return letter
-    if letter == 'b':
-        mylist = ['a', 'b', 'c', 'd', 'f']
-        letter = mylist[int(len(mylist) * random.random())]
-        return letter
-    if letter == 'c':
-        mylist = ['a', 'b', 'c', 'd', 'e']
-        letter = mylist[int(len(mylist) * random.random())]
-        return letter
-    if letter == 'd':
-        mylist = ['b', 'c', 'd']
-        letter = mylist[int(len(mylist) * random.random())]
-        return letter
-    if letter == 'e':
-        mylist = ['a', 'c', 'e']
-        letter = mylist[int(len(mylist) * random.random())]
-        return letter
-    if letter == 'f':
-        mylist = ['a', 'b', 'f']
-        letter = mylist[int(len(mylist) * random.random())]
-        return letter
+    OUTPUTS:
+    word: set; a set of words (strings) with the given coeff;
+          if coeff does not exist in symb, then return an empty string.
+    '''
+    if coeff in symb.values():
+        word = {i for i in symb if symb[i] == coeff}  # set
+        return word
+    return str()
+def get_dihedral_images(word):
+    '''
+    Get all the dihedral images of a given word.
+    ---------
+    INPUTS:
+    word: str.
 
+    OUTPUTS:
+    dihedral_images: list; each item in the list is a word (str); always has six items.
+    '''
+    word_idx = [alphabet.index(l) for l in [*word]]
+    dihedral_images = [''.join([dihedral_table[row][idx] for idx in word_idx]) for row in range(len(alphabet))]
+    return dihedral_images
+def get_valid_dihedral_images(word, pruned_symb, badsymb):
+    '''
+    Get all the dihedral images of a given word that are in a symb and not in a badsymb.
+    ---------
+    INPUTS:
+    word: str.
 
-def gen_first(letter):
-    # given the second letter, generate a valid first letter
-    if letter == 'a':
-        mylist = ['a', 'b', 'c']
-    elif letter == 'b':
-        mylist = ['a', 'b', 'c']
-    elif letter == 'c':
-        mylist = ['a', 'b', 'c']
-    elif letter == 'd':
-        mylist = ['b', 'c']
-    elif letter == 'e':
-        mylist = ['a', 'c']
-    elif letter == 'f':
-        mylist = ['a', 'b']
+    OUTPUTS:
+    dihedral_images: list; each item in the list is a word (str); always has six items.
+    '''
+    word_idx = [alphabet.index(l) for l in [*word]]
+    dihedral_images = {row: image for row in range(len(alphabet)) if (
+        image := ''.join([dihedral_table[row][idx] for idx in word_idx])) in pruned_symb and image not in badsymb}
+    return dihedral_images
+def get_dihedral_pair(key, goodkeys, symb, type="cycle"):
+    '''
+    Given a key, the
+    ---------
+    INPUTS:
+    key: str; key in dict.
+    key_images. list; the dihedral images of the key.
+    goodkeys. set; the allowed keys.
+    symb. dict; the symbol to lookup coeffs.
+    OUTPUTS:
+    pair; dict. A two-term instance of type "cycle" or "flip".
+    '''
+    # print(goodkeys)
+    if type == "cycle":
+        indices = set([3, 4])
+    elif type == "flip":
+        indices = set([1, 2, 5])
     else:
         raise ValueError
-    return mylist[int(len(mylist) * random.random())]
-
-
-def gen_last(letter):
-    # given the second to last letter, generate a valid last letter
-    if letter == 'a':
-        mylist = ['e', 'f']
-    elif letter == 'b':
-        mylist = ['d', 'f']
-    elif letter == 'c':
-        mylist = ['d', 'e']
-    elif letter == 'd':
-        mylist = ['d']
-    elif letter == 'e':
-        mylist = ['e']
-    elif letter == 'f':
-        mylist = ['f']
-    else:
-        raise ValueError
-    letter = mylist[int(len(mylist) * random.random())]
-    return letter
-
-
-def gen_valid_substr(to_gen, input=None, suffix=False):
-    # generate a valid substring. If input is given, build a string that is compatible with it.
-    # If 'suffix', gen a valid substring that can be reversed and prepended to input
-    # otherwise, gen a valid substring that can be appended to input
-    letter = ''
-    if input:
-        if suffix:
-            letter = input[0]
-        else:
-            letter = input[-1]
-    for i in range(to_gen):
-        if not suffix:
-            if i == 0:
-                mylist = ['a', 'b', 'c']
-                letter = mylist[int(len(mylist) * random.random())]
-        if suffix and (i == to_gen - 1):
-            letter = gen_first(letter)
-        else:
-            letter = gen_next(letter)
-        yield letter
-
-
-def gen_quad_suffix(letter):
-    # hardcode adjacency rules to generate nontrivial zeroes
-    if letter == 'a':
-        mylist = ['b', 'c', 'd', 'f', 'h']
-        return mylist[int(len(mylist) * random.random())]
-    if letter == 'b':
-        mylist = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-        return mylist[int(len(mylist) * random.random())]
-    if letter == 'c':
-        mylist = ['a', 'b', 'c', 'd', 'e', 'g', 'h']
-        return mylist[int(len(mylist) * random.random())]
-    if letter == 'd':
-        mylist = ['a', 'b', 'c', 'd', 'e', 'g', 'h']
-        return mylist[int(len(mylist) * random.random())]
-    if letter == 'e':
-        return "h"
-    if letter == 'f':
-        mylist = ['b', 'c', 'd', 'f']
-        return mylist[int(len(mylist) * random.random())]
-
-
-def new_nontriv_key(loops, format):
-    if format == "quad":
-        key = [letter for letter in gen_valid_substr(2 * loops - 4)]
-        suff = gen_quad_suffix(key[-1])
-        return ''.join(suff + key)
-    else:
-        # generate a key that is not a trivial zero.
-        key = [letter for letter in gen_valid_substr(2 * loops - 1)]
-        last = gen_last(key[-1])
-        return ''.join(key + last)
-
-
+    good_inds = list(indices.intersection(set(goodkeys.keys())))
+    if len(good_inds) == 0: return None
+    # get random key: ind from goodkeys
+    ind = random.choice(good_inds)
+    pair = {key: [symb[key], 1], goodkeys[ind]: [symb[goodkeys[ind]], -1]}
+    return pair
 def generate_random_word(word_length, format='full', seed=0):
     '''
     Generate a random word with a specific length.
@@ -455,265 +336,46 @@ def generate_random_word(word_length, format='full', seed=0):
         # return prefix+word
         return None
 
-
-def get_coeff_from_word(word, symb):
+def get_rel_terms_in_symb(symb, fraction, rel, rel_slot='any', format='full', seed=0):
     '''
-    Get the coeff of a given word in a symbol.
-    ---------
-    INPUTS:
-    word: str; a string of letters such as 'aaae'.
-    symb: dict; a dictionary with word as key, and coeff as value, e.g., {'aaae':16, 'aaaf':16}.
-
-    OUTPUTS:
-    coeff: float; if word does not exist in symb, then return 0.
-    '''
-    if word in symb:
-        return symb[word]
-    return 0
-
-
-def get_word_from_coeff(coeff, symb):
-    '''
-    Get the words corresponding to a given coeff in a symbol.
-    ---------
-    INPUTS:
-    coeff: float; e.g., 16.
-    symb: dict; a dictionary with word as key, and coeff as value, e.g., {'aaae':16, 'aaaf':16}.
-
-    OUTPUTS:
-    word: set; a set of words (strings) with the given coeff;
-          if coeff does not exist in symb, then return an empty string.
-    '''
-    if coeff in symb.values():
-        word = {i for i in symb if symb[i] == coeff}  # set
-        return word
-    return str()
-
-
-def is_word(word, format='full'):
-    '''
-    Check if all the letters in a given word are all from the alphabet.
-    ---------
-    INPUTS:
-    word: str.
-
-    OUTPUTS:
-    True/False: bool.
-    '''
-    if format not in ["full", "quad", "oct"]:
-        print("Error, bad format!")
-        raise ValueError
-
-    if format == 'full':
-        for letter in word:
-            if letter not in alphabet:
-                return False
-        return True
-
-    if format == 'quad':
-        if word[0] not in quad_prefix:
-            return False
-        else:
-            for letter in word[1:]:
-                if letter not in alphabet:
-                    return False
-            return True
-
-    if format == 'oct':  # not yet implemented
-        # if word[0] not in oct_prefix:
-        # return False
-        # else:
-        # for letter in word[1:]:
-        # if letter not in alphabet:
-        # return False
-        # return True
-        return None
-
-
-def find_nonwords(symb, format='full'):
-    '''
-    Find all the nonwords in a given symbol;
-    nonwords defined as words consisting of illegitimate letters.
+    Get the related term(s) in the given symbol according to the specified relation,
+    for a fraction of words in the full symbol.
     ---------
     INPUTS:
     symb: dict.
+    fraction: float; fraction of total words in the full symbol to be picked as samples;
+              between 0 and 1, where 1 gets all words in the full symbol;
+    rel: dict.
+    rel_slot: str; one of the three choices 'first', 'final', 'any';
+              if 'first' or 'final', the relation can only be at the first or final few slots of a word;
+              if 'any', the relation can be at any slot of a word.
+    seed: int; random number generating seed; default 0.
 
     OUTPUTS:
-    nonwords: dict; dict for nonwords with {'word': coeff} in the given symbol.
+    rel_terms_list: list of dicts; each item in the list is a dict in the format of
+                    {word: [symb_coeff, rel_coeff]}.
     '''
-    nonwords = {}
-    for word in symb:
-        if not is_word(word, format=format):
-            coeff = get_coeff_from_word(word, symb)
-            nonwords.update({word: coeff})
-    return nonwords
+    if rel_slot not in {'first', 'initial', 'final', 'any'}: raise ValueError
+    rel_terms_list_symb = []
+    all_words = list(symb.keys())
+    num_words_to_pick = int(len(all_words) * fraction)
 
+    if num_words_to_pick <= 0:
+        return []
 
-def find_noncoeffs(symb):
-    '''
-    Find all the noncoeffs in a given symbol;
-    noncoeffs defined as non integers.
-    ---------
-    INPUTS:
-    symb: dict.
+    random.seed(seed)
+    random_words = random.sample(all_words, num_words_to_pick)
 
-    OUTPUTS:
-    noncoeffs: dict; dict for noncoeffs with {'word': coeff} in the given symbol.
-    '''
-    noncoeffs = {}
-    for coeff in symb.values():
-        if not isinstance(coeff, int):
-            for word in get_word_from_coeff(coeff, symb):
-                noncoeffs.update({word: coeff})
-    return noncoeffs
+    for word in random_words:
+        rel_terms_list = get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot=rel_slot, format=format)
+        if rel_terms_list is None:
+            return None
+        for rel_terms in rel_terms_list:
+            if (rel_terms) and (
+                    not any([rel_terms == existing_rel_terms for existing_rel_terms in rel_terms_list_symb])):
+                rel_terms_list_symb.append(rel_terms)
 
-
-def find_nonterms(symb, format='full'):
-    '''
-    Find all the nonterms in a given symbol;
-    nonterms defined as either the words are nonwords, or the coeffs are noncoeffs, or both.
-    ---------
-    INPUTS:
-    symb: dict.
-
-    OUTPUTS:
-    nonterms: dict; dict for nonterms with {'word': coeff} in the given symbol.
-    '''
-
-    nonterms = {}
-    for word in symb:
-        coeff = symb[word]
-
-        if not is_word(word, format=format):
-            coeff = get_coeff_from_word(word, symb)
-            nonterms.update({word: coeff})
-
-        if not isinstance(coeff, int):
-            for word in get_word_from_coeff(coeff, symb):
-                nonterms.update({word: coeff})
-
-    return nonterms
-
-
-def count_nonterms(symb, format='full'):
-    '''
-    Count the number of nonterms in a given symbol.
-    ---------
-    INPUTS:
-    symb: dict.
-
-    OUTPUTS:
-    percent: float; between 0 and 1 (0: all terms are valid).
-    '''
-
-    return len(find_nonterms(symb, format=format)) / len(symb)
-
-
-def remove_nonterms(symb, format='full'):
-    '''
-    Remove nonterms from a given symbol.
-    ---------
-    INPUTS:
-    symb: dict.
-
-    OUTPUTS:
-    symb: dict; all nonterms removed.
-    '''
-
-    nonterms = find_nonterms(symb, format=format)
-    for key in nonterms:
-        symb.pop(key)
-    return symb
-
-
-##############################################################################################
-# DIHEDRAL SYMMETRY #
-##############################################################################################
-# Dihedral symmetry is only meaningful to check with the full data format. If symbol words are
-# represented in the compact formats of quad and oct, dihedral symmetry is already baked in,
-# and cannot be checked, as a dihedral rotation may take us outside the given quad/oct symbol.
-#
-# E.g., 'acddc', which spelled out in full is 'cddcdddd', can become 'aeeaeeee' upon
-# a dihedral rotation. But aeeaeeee is never in the given symb_quad in the first place,
-# as there is no quad letter to designate the suffice 'eeee'.
-#
-# Therefore, in this section, we assume all words are given in the full format.
-
-# a fixed look-up table for dihedral transformations
-
-def get_dihedral_images(word):
-    '''
-    Get all the dihedral images of a given word.
-    ---------
-    INPUTS:
-    word: str.
-
-    OUTPUTS:
-    dihedral_images: list; each item in the list is a word (str); always has six items.
-    '''
-    word_idx = [alphabet.index(l) for l in [*word]]
-    dihedral_images = [''.join([dihedral_table[row][idx] for idx in word_idx]) for row in range(len(alphabet))]
-    return dihedral_images
-
-
-def get_valid_dihedral_images(word, pruned_symb, badsymb):
-    '''
-    Get all the dihedral images of a given word that are in a symb and not in a badsymb.
-    ---------
-    INPUTS:
-    word: str.
-
-    OUTPUTS:
-    dihedral_images: list; each item in the list is a word (str); always has six items.
-    '''
-    word_idx = [alphabet.index(l) for l in [*word]]
-    dihedral_images = {row: image for row in range(len(alphabet)) if (
-        image := ''.join([dihedral_table[row][idx] for idx in word_idx])) in pruned_symb and image not in badsymb}
-    return dihedral_images
-
-
-def get_dihedral_pair(key, goodkeys, symb, type="cycle"):
-    '''
-    Given a key, the
-    ---------
-    INPUTS:
-    key: str; key in dict.
-    key_images. list; the dihedral images of the key.
-    goodkeys. set; the allowed keys.
-    symb. dict; the symbol to lookup coeffs.
-    OUTPUTS:
-    pair; dict. A two-term instance of type "cycle" or "flip".
-    '''
-    # print(goodkeys)
-    if type == "cycle":
-        indices = set([3, 4])
-    elif type == "flip":
-        indices = set([1, 2, 5])
-    else:
-        raise ValueError
-    good_inds = list(indices.intersection(set(goodkeys.keys())))
-    if len(good_inds) == 0: return None
-    # get random key: ind from goodkeys
-    ind = random.choice(good_inds)
-    pair = {key: [symb[key], 1], goodkeys[ind]: [symb[goodkeys[ind]], -1]}
-    return pair
-
-
-def get_cycle_images(word):
-    '''
-    Get all the 3-cycle dihedral images of a given word.
-    ---------
-    INPUTS:
-    word: str.
-
-    OUTPUTS:
-    cycle_images: list; each item in the list is a word (str); always has six items.
-    '''
-    word_idx = [alphabet.index(l) for l in [*word]]
-    cycle_images = [''.join([cycle_table[row][idx] for idx in word_idx]) for row in range(int(len(alphabet) / 2))]
-    return cycle_images
-
-
+    return rel_terms_list_symb
 def get_dihedral_terms_in_symb(word, symb, count_coeffs=False, failsymb=None):
     '''
     Get the {word: coeff} of all the dihedral images of a given word in a symbol;
@@ -741,118 +403,240 @@ def get_dihedral_terms_in_symb(word, symb, count_coeffs=False, failsymb=None):
 
     unique_coeffs, counts = np.unique(np.array(list(images_coeffs.values())), return_counts=True)
     return images_coeffs, dict(zip(unique_coeffs, counts))
-
-
-def get_cycles_flips_terms_in_symb(word, symb, count_coeffs=False):
+def get_rel_instances_in_symb(rel_instance_list, symb):
     '''
-    Get the {word: coeff} of all the dihedral images of a given word in a symbol;
-    if word (or its images) is not in the symb, then coeff=0.
+    Given a list of relation instances, get their term(s) in the given symbol.
+    First step for relation-level relation check.
     ---------
     INPUTS:
-    word: str.
-    symb: dict.
-    count_coeffs: bool; whether to output the number of occurances of a certain coeff among all dihedral images of a word;
-                  default False.
+    rel_instance_list: list of dicts; outputs of functions `generate_rel_instances`.
+    symb: dict; symbol at a given loop order; can be the ground truth or the model predictions.
 
     OUTPUTS:
-    images_coeffs: dict; all terms dihedrally related to the given word in the symbol.
-    unique_coeffs_counts: dict; number of occurances of each unique coeff among the six dihedral images of a word;
-                          e.g., {'16' (coeff): 6 (# of occurances)}; return only if count_coeffs=True.
+    rel_instance_in_symb_list: list of dicts; each item in the list is a dict corresponding to one relation instance
+                               in the input rel_instance_list; key is word and value is [symb_coeff, rel_coeff];
+                               if the word is not in symb, then its symb_coeff is automatically 0.
     '''
-    images = get_dihedral_images(word)
-    cycles = get_cycle_images(word)
+    rel_instance_in_symb_list = []
+    if rel_instance_list is None:
+        return None
 
-    images_coeffs = {}
-    cycles_coeffs = {}
-    flips_coeffs = {}
+    for rel_instance in rel_instance_list:
+        rel_instance_in_symb = {}
+        for word, rel_coeff in rel_instance.items():
+            symb_coeff = get_coeff_from_word(word, symb)
+            rel_instance_in_symb.update({word: [symb_coeff, rel_coeff]})
+        rel_instance_in_symb_list.append(rel_instance_in_symb)
 
-    for image in images:
-        images_coeffs.update({image: get_coeff_from_word(image, symb)})
-        if image == word:
-            cycles_coeffs.update({image: get_coeff_from_word(image, symb)})
-            flips_coeffs.update({image: get_coeff_from_word(image, symb)})
-        elif image in cycles:
-            cycles_coeffs.update({image: get_coeff_from_word(image, symb)})
+    return rel_instance_in_symb_list
+def update_rel_instances_in_symb(rel_instance_in_symb_list, symb):
+    '''
+    Given a list of relation instances in the format {word: [symb_coeff, rel_coeff]},
+    update symb_coeff by the new input symbol.
+    ---------
+    INPUTS:
+    rel_instance_list: list of dicts; format: {word: [symb_coeff, rel_coeff]}.
+    symb: dict; symbol at a given loop order; can be the ground truth or the model predictions.
+
+    OUTPUTS:
+    rel_instance_in_symb_list: list of dicts; same as the output of function 'get_rel_instances_in_symb';
+                               each item in the list is a dict corresponding to one relation instance
+                               in the input rel_instance_list; key is word and value is [symb_coeff, rel_coeff].
+    '''
+    rel_instance_in_symb_list_updated = []
+    if rel_instance_in_symb_list is None:
+        return None
+
+    for rel_instance in rel_instance_in_symb_list:
+        rel_instance_in_symb = {}
+        for word, coeff_pair in rel_instance.items():
+            symb_coeff = get_coeff_from_word(word, symb)
+            rel_instance_in_symb.update({word: [symb_coeff, coeff_pair[1]]})
+        rel_instance_in_symb_list_updated.append(rel_instance_in_symb)
+
+    return rel_instance_in_symb_list_updated
+def replace_trivial0_terms(symb, return_symb=False):
+    '''
+    Find all the trivial zero words in a given symbol (assume valid and in full format)
+    and manually force their coeffs to be zero, regardless of the original coeffs in the given symbol.
+    ---------
+    INPUTS:
+    symb: dict.
+    return_symb: bool; whether to return the full given symbol
+                       with its trivial zero terms updated to have coeff=0;
+                       default False.
+    OUTPUTS:
+    if return_symb == False, then
+        trivial0_terms: dict; dict for trivial zero terms with {'word': 0} in the given symbol.
+    if return_symb == True, then
+        symb_updated: dict; full input symbol with its trivial zero terms updated to have coeff=0.
+    '''
+    trivial0_terms = {}
+    symb_updated = symb.copy()
+    for word in symb:
+        if is_trivial0(word):
+            trivial0_terms.update({word: 0})
+            symb_updated.update({word: 0})
+
+    if not return_symb:
+        return trivial0_terms
+
+    if return_symb:
+        return symb_updated
+
+def check_rel(rel_terms_list, return_rel_info=False, p_norm=None):
+    '''
+    Check if all relations in the input list of relations are satisfied, i.e., sum up to 0.
+    Valid regardless of the sampling approach, i.e., word-oriented or relation-oriented.
+    ---------
+    INPUTS:
+    rel_terms_list: list of dicts; format {word: [symb_coeff, rel_coeff]}.
+    return_rel_info: bool; whether to return the detailed info of each relation,
+                     including relation sum and number of non-trivial-zero terms in each relation;
+                     default False.
+    p_norm: float or None; p is the average accuracy of model prediction;
+            goal is to normalize the accuracy by the number of terms in a relation; default None.
+
+    OUTPUTS:
+    percent: float; percent of correct relations, i.e., those that sum up to 0; between 0 and 1 (1: all correct).
+    relsum_list: list; each item in the list is a int/float for one instance,
+                 where the int/float corresponds to the rel sum of that particular instance (should all be 0 if correct);
+                 return only if return_info_info=True.
+    relnontrivial0_list: list; each item in the list is an int for one instance,
+                 where the int is the number of non-trivial-zero words in that particular instance;
+                 return only if return_rel_info=True.
+    '''
+    nterm = len(rel_terms_list[0])
+    if rel_terms_list is None:
+        return None
+
+    relsum_list, relnontrivial0_list = zip(*[(elem) for elem in get_relsum_and_nzero(rel_terms_list, p_norm)])
+
+    if not relsum_list:
+        percent = None
+    else:
+        percent = relsum_list.count(0) / len(relsum_list)
+
+        if p_norm:
+            percent /= p_norm ** nterm
+
+    if return_rel_info:
+        return percent, relsum_list, relnontrivial0_list
+
+    return percent
+def check_coeffs_in_rel(rel_terms_list, symb_truth_list, return_counts=False, require_satisfied=True):
+    '''
+    Check if all relations in the input list of relations are satisfied, i.e., sum up to 0.
+    Valid regardless of the sampling approach, i.e., word-oriented or relation-oriented.
+    ---------
+    INPUTS:
+    rel_terms_list: list of dicts; format {word: [symb_coeff, rel_coeff]}.
+    symb_truth: list of dicts;format {word: [symb_coeff, rel_coeff]}. the truth symbol against which the correctness of
+                symb_coeff predicted by the model for each word is checked.
+    return_counts: bool; whether to return the count of correct coeffs in each rel instance;
+                    default False.
+
+    OUTPUTS:
+    percent_allcorrect: float; percent of correct relations with all its word coeffs also correct.
+    percent_magcorrect: float; percent of correct relations with all its word coeffs magnitude correct.
+    correct_coeffs_in_rel_list: list of lists; format [[bool, int, int], [], ...], where bool suggests if the current relation
+                            instance is correct, the first int indicates how many of its word coeffs are right,
+                            and the second int suggests how many word coeffs are magnitude correct;
+                            return only if return_counts=True.
+    '''
+    correct_coeffs_in_rel_list = []
+    n_allcorrect_rel, n_magcorrect_rel, n_signcorrect_rel = 0, 0, 0
+    n_allcorrect_norel, n_magcorrect_norel, n_signcorrect_norel = 0, 0, 0
+    if rel_terms_list is None:
+        return None
+
+    for rel_terms, symb_truth in zip(rel_terms_list, symb_truth_list):
+        relsum = 0
+        n_allcorrect, n_magcorrect, n_signcorrect = 0, 0, 0
+        nterm = len(rel_terms)
+
+        for (key, value), (truth_key, truth_value) in zip(rel_terms.items(), symb_truth.items()):
+            if value[0] == None:  # invalid symb_coeff
+                relsum = -1
+            else:
+                try:
+                    relsum += np.prod(value)
+                except ArithmeticError:
+                    print("overflow error! setting rel sum to -1")
+                    relsum = -1
+
+            if value[0] != None:
+                if value[0] == truth_value[0]:
+                    n_allcorrect += 1
+
+                if np.abs(value[0]) == np.abs(truth_value[0]):
+                    n_magcorrect += 1
+
+                if np.sign(value[0]) == np.sign(truth_value[0]):
+                    n_signcorrect += 1
+
+        if relsum == 0:
+            rel_correct = True
         else:
-            flips_coeffs.update({image: get_coeff_from_word(image, symb)})
-    if not count_coeffs:
-        return images_coeffs, cycles_coeffs, flips_coeffs
+            rel_correct = False
 
-    unique_coeffs, counts = np.unique(np.array(list(images_coeffs.values())), return_counts=True)
-    return images_coeffs, cycles_coeffs, flips_coeffs, dict(zip(unique_coeffs, counts))
+        if rel_correct == True and n_allcorrect == nterm:
+            n_allcorrect_rel += 1
 
+        if rel_correct == True and n_magcorrect == nterm:
+            n_magcorrect_rel += 1
 
-def count_wrong_dihedral(word, coeff_truth, symb, return_wrong_dihedral=False):
+        if rel_correct == True and n_signcorrect == nterm:
+            n_signcorrect_rel += 1
+
+        if n_allcorrect == nterm:
+            n_allcorrect_norel += 1
+
+        if n_magcorrect == nterm:
+            n_magcorrect_norel += 1
+
+        if n_signcorrect == nterm:
+            n_signcorrect_norel += 1
+
+        correct_coeffs_in_rel_list.append([rel_correct, n_allcorrect, n_magcorrect, n_signcorrect])
+    if not correct_coeffs_in_rel_list:
+        percent_allcorrect, percent_magcorrect, percent_signcorrect = None, None, None
+    else:
+        if require_satisfied:
+            percent_allcorrect = n_allcorrect_rel / len(correct_coeffs_in_rel_list)
+            percent_magcorrect = n_magcorrect_rel / len(correct_coeffs_in_rel_list)
+            percent_signcorrect = n_signcorrect_rel / len(correct_coeffs_in_rel_list)
+        else:
+            percent_allcorrect = n_allcorrect_norel / len(correct_coeffs_in_rel_list)
+            percent_magcorrect = n_magcorrect_norel / len(correct_coeffs_in_rel_list)
+            percent_signcorrect = n_signcorrect_norel / len(correct_coeffs_in_rel_list)
+    if return_counts:
+        return percent_allcorrect, percent_magcorrect, percent_signcorrect, correct_coeffs_in_rel_list
+
+    return percent_allcorrect, percent_magcorrect, percent_signcorrect
+def is_trivial0(word):
     '''
-    Get the {word: coeff} of all the dihedral images of a given word in a symbol;
-    if word (or its images) is not in the symb, then coeff=0.
+    Check if a given word (assuming valid and in full format) is a trivial zero word.
     ---------
     INPUTS:
     word: str.
-    coeff_truth: int; the ground truth value of the coeff for all dihedral images of the given word.
-    symb: dict.
-    return_wrong_dihedral: bool; whether to return the dict of dihedrally related words with wrong coeff;
-                           default False.
-
     OUTPUTS:
-    percent: float; percent of wrong coeffs; between 0 and 1.
-    wrong_dihedral: dict; {word: coeff} where words are dihedrally related to the given word but with wrong coeff;
-                    return only if return_wrong_dihedral=True.
+    True/False: bool.
     '''
-    images_coeffs, coeff_counts = get_dihedral_terms_in_symb(word, symb, count_coeffs=True)
-    wrong_dihedral = {}
-    for coeff in coeff_counts:
-        if coeff != coeff_truth:
-            for word in get_word_from_coeff(coeff, images_coeffs):
-                wrong_dihedral.update({word: coeff})
+    for rel in first_entry_rel_table:  # prefix rule
+        if word[0] in rel:
+            return True
 
-    if not return_wrong_dihedral:
-        return len(wrong_dihedral) / len(images_coeffs)
+    for rel in final_entries_rel_table[:3]:  # suffix rule
+        if word[-1] in rel:
+            return True
 
-    return len(wrong_dihedral) / len(images_coeffs), wrong_dihedral
+    for rel in get_rel_table_dihedral(double_adjacency_rel_table):  # adjacency rule
+        for rel_key in rel:
+            if rel_key in word:
+                return True
 
-
-##############################################################################################
-# GET DIHEDRAL IMAGES OF RELATIONS #
-##############################################################################################
-
-
-def get_rel_dihedral(rel):
-    '''
-    Given a relation, output all its dihedral images, where duplicated relations are removed.
-    ---------
-    INPUTS:
-    rel: dict; one input relation; e.g. {'aab':1, 'abb':1, 'acb':1}.
-
-    OUTPUTS:
-    unique_rel_dihedral: list; each item in the list is a dict corresponding to the dihedral images of the given relation;
-                  always has six items and in the fixed order of the dihedral look-up table.
-    '''
-    nterm = len(rel)
-    term_list = list(rel.keys())
-    rel_dihedral = []
-
-    term_list_dihedral = [get_dihedral_images(term) for term in term_list]
-    for i in range(len(term_list_dihedral[0])):
-        rel_dihedral_term = {}
-
-        for iterm in range(nterm):
-            rel_dihedral_term.update({term_list_dihedral[iterm][i]: rel[term_list[iterm]]})
-
-        rel_dihedral.append(rel_dihedral_term)
-
-    unique_rel_dihedral = []
-    seen_rel_dihedral = set()
-
-    for d in rel_dihedral:
-        dict_tuple = tuple(sorted(d.items()))
-        if dict_tuple not in seen_rel_dihedral:
-            seen_rel_dihedral.add(dict_tuple)
-            unique_rel_dihedral.append(d)
-
-    return unique_rel_dihedral
-
-
+    return False
 def get_rel_table_dihedral(rel_table):
     '''
     Given a relation table, output all the dihedral images of each relation,
@@ -888,69 +672,6 @@ def get_rel_table_dihedral(rel_table):
                 unique_rel_table_dihedral.append(d)
 
     return unique_rel_table_dihedral
-
-
-##############################################################################################
-# GET TERMS IN SYMBOL RELATED BY CERTAIN RELATIONS #
-##############################################################################################
-
-
-def get_rel_instances_in_symb(rel_instance_list, symb):
-    '''
-    Given a list of relation instances, get their term(s) in the given symbol.
-    First step for relation-level relation check.
-    ---------
-    INPUTS:
-    rel_instance_list: list of dicts; outputs of functions `generate_rel_instances`.
-    symb: dict; symbol at a given loop order; can be the ground truth or the model predictions.
-
-    OUTPUTS:
-    rel_instance_in_symb_list: list of dicts; each item in the list is a dict corresponding to one relation instance
-                               in the input rel_instance_list; key is word and value is [symb_coeff, rel_coeff];
-                               if the word is not in symb, then its symb_coeff is automatically 0.
-    '''
-    rel_instance_in_symb_list = []
-    if rel_instance_list is None:
-        return None
-
-    for rel_instance in rel_instance_list:
-        rel_instance_in_symb = {}
-        for word, rel_coeff in rel_instance.items():
-            symb_coeff = get_coeff_from_word(word, symb)
-            rel_instance_in_symb.update({word: [symb_coeff, rel_coeff]})
-        rel_instance_in_symb_list.append(rel_instance_in_symb)
-
-    return rel_instance_in_symb_list
-
-
-def update_rel_instances_in_symb(rel_instance_in_symb_list, symb):
-    '''
-    Given a list of relation instances in the format {word: [symb_coeff, rel_coeff]},
-    update symb_coeff by the new input symbol.
-    ---------
-    INPUTS:
-    rel_instance_list: list of dicts; format: {word: [symb_coeff, rel_coeff]}.
-    symb: dict; symbol at a given loop order; can be the ground truth or the model predictions.
-
-    OUTPUTS:
-    rel_instance_in_symb_list: list of dicts; same as the output of function 'get_rel_instances_in_symb';
-                               each item in the list is a dict corresponding to one relation instance
-                               in the input rel_instance_list; key is word and value is [symb_coeff, rel_coeff].
-    '''
-    rel_instance_in_symb_list_updated = []
-    if rel_instance_in_symb_list is None:
-        return None
-
-    for rel_instance in rel_instance_in_symb_list:
-        rel_instance_in_symb = {}
-        for word, coeff_pair in rel_instance.items():
-            symb_coeff = get_coeff_from_word(word, symb)
-            rel_instance_in_symb.update({word: [symb_coeff, coeff_pair[1]]})
-        rel_instance_in_symb_list_updated.append(rel_instance_in_symb)
-
-    return rel_instance_in_symb_list_updated
-
-
 def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full'):
     '''
     Given a word, get the related term(s) in the given symbol according to the specified relation.
@@ -1073,54 +794,6 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
                 rel_terms_list.append(rel_terms_pos)
 
         return list(itertools.chain(*rel_terms_list))
-
-
-def get_rel_terms_in_symb(symb, fraction, rel, rel_slot='any', format='full', seed=0):
-    '''
-    Get the related term(s) in the given symbol according to the specified relation,
-    for a fraction of words in the full symbol.
-    ---------
-    INPUTS:
-    symb: dict.
-    fraction: float; fraction of total words in the full symbol to be picked as samples;
-              between 0 and 1, where 1 gets all words in the full symbol;
-    rel: dict.
-    rel_slot: str; one of the three choices 'first', 'final', 'any';
-              if 'first' or 'final', the relation can only be at the first or final few slots of a word;
-              if 'any', the relation can be at any slot of a word.
-    seed: int; random number generating seed; default 0.
-
-    OUTPUTS:
-    rel_terms_list: list of dicts; each item in the list is a dict in the format of
-                    {word: [symb_coeff, rel_coeff]}.
-    '''
-    if rel_slot not in {'first', 'initial', 'final', 'any'}: raise ValueError
-    rel_terms_list_symb = []
-    all_words = list(symb.keys())
-    num_words_to_pick = int(len(all_words) * fraction)
-
-    if num_words_to_pick <= 0:
-        return []
-
-    random.seed(seed)
-    random_words = random.sample(all_words, num_words_to_pick)
-
-    for word in random_words:
-        rel_terms_list = get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot=rel_slot, format=format)
-        if rel_terms_list is None:
-            return None
-        for rel_terms in rel_terms_list:
-            if (rel_terms) and (
-                    not any([rel_terms == existing_rel_terms for existing_rel_terms in rel_terms_list_symb])):
-                rel_terms_list_symb.append(rel_terms)
-
-    return rel_terms_list_symb
-
-
-##############################################################################################
-# CHECK RELATIONS IN SYMBOL #
-##############################################################################################
-
 def get_relsum_and_nzero(rel_terms_list, nterm, p_norm):
     for rel_terms in rel_terms_list:
         relsum = 0
@@ -1147,143 +820,39 @@ def get_relsum_and_nzero(rel_terms_list, nterm, p_norm):
         yield relsum, n_nontrivial0_term
 
 
-def check_rel(rel_terms_list, return_rel_info=False, p_norm=None):
-    '''
-    Check if all relations in the input list of relations are satisfied, i.e., sum up to 0.
-    Valid regardless of the sampling approach, i.e., word-oriented or relation-oriented.
-    ---------
-    INPUTS:
-    rel_terms_list: list of dicts; format {word: [symb_coeff, rel_coeff]}.
-    return_rel_info: bool; whether to return the detailed info of each relation,
-                     including relation sum and number of non-trivial-zero terms in each relation;
-                     default False.
-    p_norm: float or None; p is the average accuracy of model prediction;
-            goal is to normalize the accuracy by the number of terms in a relation; default None.
-
-    OUTPUTS:
-    percent: float; percent of correct relations, i.e., those that sum up to 0; between 0 and 1 (1: all correct).
-    relsum_list: list; each item in the list is a int/float for one instance,
-                 where the int/float corresponds to the rel sum of that particular instance (should all be 0 if correct);
-                 return only if return_info_info=True.
-    relnontrivial0_list: list; each item in the list is an int for one instance,
-                 where the int is the number of non-trivial-zero words in that particular instance;
-                 return only if return_rel_info=True.
-    '''
-    relsum_list, relnontrivial0_list = [], []
-    nterm = len(rel_terms_list[0])
-    if rel_terms_list is None:
-        return None
-    # TODO: check this!
-    relsum_list, relnontrivial0_list = zip(*[(elem) for elem in get_relsum_and_nzero(rel_terms_list, p_norm)])
-
-    if not relsum_list:
-        percent = None
-    else:
-        percent = relsum_list.count(0) / len(relsum_list)
-
-        if p_norm:
-            percent /= p_norm ** nterm
-
-    if return_rel_info:
-        return percent, relsum_list, relnontrivial0_list
-
-    return percent
 
 
-rels_to_check_default = {'first': [0.1, 0.1, 0.1], 'double': [0.1, 0.1, 0.1], 'triple': [0.1],
-                         'final': [0.1] * 29, 'integral': [0.01, 0.01, 0.01]}
 
 
-def check_coeffs_in_rel(rel_terms_list, symb_truth_list, return_counts=False, require_satisfied=True):
-    '''
-    Check if all relations in the input list of relations are satisfied, i.e., sum up to 0.
-    Valid regardless of the sampling approach, i.e., word-oriented or relation-oriented.
-    ---------
-    INPUTS:
-    rel_terms_list: list of dicts; format {word: [symb_coeff, rel_coeff]}.
-    symb_truth: list of dicts;format {word: [symb_coeff, rel_coeff]}. the truth symbol against which the correctness of
-                symb_coeff predicted by the model for each word is checked.
-    return_counts: bool; whether to return the count of correct coeffs in each rel instance;
-                    default False.
+##############################################################################################
+# DIHEDRAL SYMMETRY #
+##############################################################################################
+# Dihedral symmetry is only meaningful to check with the full data format. If symbol words are
+# represented in the compact formats of quad and oct, dihedral symmetry is already baked in,
+# and cannot be checked, as a dihedral rotation may take us outside the given quad/oct symbol.
+#
+# E.g., 'acddc', which spelled out in full is 'cddcdddd', can become 'aeeaeeee' upon
+# a dihedral rotation. But aeeaeeee is never in the given symb_quad in the first place,
+# as there is no quad letter to designate the suffice 'eeee'.
+#
+# Therefore, in this section, we assume all words are given in the full format.
 
-    OUTPUTS:
-    percent_allcorrect: float; percent of correct relations with all its word coeffs also correct.
-    percent_magcorrect: float; percent of correct relations with all its word coeffs magnitude correct.
-    correct_coeffs_in_rel_list: list of lists; format [[bool, int, int], [], ...], where bool suggests if the current relation
-                            instance is correct, the first int indicates how many of its word coeffs are right,
-                            and the second int suggests how many word coeffs are magnitude correct;
-                            return only if return_counts=True.
-    '''
-    correct_coeffs_in_rel_list = []
-    n_allcorrect_rel, n_magcorrect_rel, n_signcorrect_rel = 0, 0, 0
-    n_allcorrect_norel, n_magcorrect_norel, n_signcorrect_norel = 0, 0, 0
-    if rel_terms_list is None:
-        return None
+# a fixed look-up table for dihedral transformations
 
-    for rel_terms, symb_truth in zip(rel_terms_list, symb_truth_list):
-        relsum = 0
-        n_allcorrect, n_magcorrect, n_signcorrect = 0, 0, 0
-        nterm = len(rel_terms)
 
-        for (key, value), (truth_key, truth_value) in zip(rel_terms.items(), symb_truth.items()):
-            if value[0] == None:  # invalid symb_coeff
-                relsum = -1
-            else:
-                try:
-                    relsum += np.prod(value)
-                except ArithmeticError:
-                    print("overflow error! setting rel sum to -1")
-                    relsum = -1
 
-            if value[0] != None:
-                if value[0] == truth_value[0]:
-                    n_allcorrect += 1
+#OLD:
 
-                if np.abs(value[0]) == np.abs(truth_value[0]):
-                    n_magcorrect += 1
+##############################################################################################
+# GET DIHEDRAL IMAGES OF RELATIONS #
+##############################################################################################
+##############################################################################################
+# GET TERMS IN SYMBOL RELATED BY CERTAIN RELATIONS #
+##############################################################################################
+##############################################################################################
+# CHECK RELATIONS IN SYMBOL #
+##############################################################################################
 
-                if np.sign(value[0]) == np.sign(truth_value[0]):
-                    n_signcorrect += 1
-
-        if relsum == 0:
-            rel_correct = True
-        else:
-            rel_correct = False
-
-        if rel_correct == True and n_allcorrect == nterm:
-            n_allcorrect_rel += 1
-
-        if rel_correct == True and n_magcorrect == nterm:
-            n_magcorrect_rel += 1
-
-        if rel_correct == True and n_signcorrect == nterm:
-            n_signcorrect_rel += 1
-
-        if n_allcorrect == nterm:
-            n_allcorrect_norel += 1
-
-        if n_magcorrect == nterm:
-            n_magcorrect_norel += 1
-
-        if n_signcorrect == nterm:
-            n_signcorrect_norel += 1
-
-        correct_coeffs_in_rel_list.append([rel_correct, n_allcorrect, n_magcorrect, n_signcorrect])
-    if not correct_coeffs_in_rel_list:
-        percent_allcorrect, percent_magcorrect, percent_signcorrect = None, None, None
-    else:
-        if require_satisfied:
-            percent_allcorrect = n_allcorrect_rel / len(correct_coeffs_in_rel_list)
-            percent_magcorrect = n_magcorrect_rel / len(correct_coeffs_in_rel_list)
-            percent_signcorrect = n_signcorrect_rel / len(correct_coeffs_in_rel_list)
-        else:
-            percent_allcorrect = n_allcorrect_norel / len(correct_coeffs_in_rel_list)
-            percent_magcorrect = n_magcorrect_norel / len(correct_coeffs_in_rel_list)
-            percent_signcorrect = n_signcorrect_norel / len(correct_coeffs_in_rel_list)
-    if return_counts:
-        return percent_allcorrect, percent_magcorrect, percent_signcorrect, correct_coeffs_in_rel_list
-
-    return percent_allcorrect, percent_magcorrect, percent_signcorrect
 
 
 ##############################################################################################
@@ -1291,59 +860,4 @@ def check_coeffs_in_rel(rel_terms_list, symb_truth_list, return_counts=False, re
 ##############################################################################################
 
 # Assume all words are in the full format (no quad, oct).
-
-def is_trivial0(word):
-    '''
-    Check if a given word (assuming valid and in full format) is a trivial zero word.
-    ---------
-    INPUTS:
-    word: str.
-    OUTPUTS:
-    True/False: bool.
-    '''
-    for rel in first_entry_rel_table:  # prefix rule
-        if word[0] in rel:
-            return True
-
-    for rel in final_entries_rel_table[:3]:  # suffix rule
-        if word[-1] in rel:
-            return True
-
-    for rel in get_rel_table_dihedral(double_adjacency_rel_table):  # adjacency rule
-        for rel_key in rel:
-            if rel_key in word:
-                return True
-
-    return False
-
-
-def replace_trivial0_terms(symb, return_symb=False):
-    '''
-    Find all the trivial zero words in a given symbol (assume valid and in full format)
-    and manually force their coeffs to be zero, regardless of the original coeffs in the given symbol.
-    ---------
-    INPUTS:
-    symb: dict.
-    return_symb: bool; whether to return the full given symbol
-                       with its trivial zero terms updated to have coeff=0;
-                       default False.
-    OUTPUTS:
-    if return_symb == False, then
-        trivial0_terms: dict; dict for trivial zero terms with {'word': 0} in the given symbol.
-    if return_symb == True, then
-        symb_updated: dict; full input symbol with its trivial zero terms updated to have coeff=0.
-    '''
-    trivial0_terms = {}
-    symb_updated = symb.copy()
-    for word in symb:
-        if is_trivial0(word):
-            trivial0_terms.update({word: 0})
-            symb_updated.update({word: 0})
-
-    if not return_symb:
-        return trivial0_terms
-
-    if return_symb:
-        return symb_updated
-
 

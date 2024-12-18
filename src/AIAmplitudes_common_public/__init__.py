@@ -1,7 +1,20 @@
-from AIAmplitudes.file_readers import relpath,convert,get_relpermdict
-from AIAmplitudes.polynomial_utils import polynom_convert, get_runpolynomials, get_polynomialcoeffs
-from AIAmplitudes.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace
-from AIAmplitudes.fbspaces import get_rest_fspace,get_rest_bspace
+from AIAmplitudes_common_public.file_readers import relpath,convert,get_relpermdict
+from AIAmplitudes_common_public.polynomial_utils import polynom_convert, get_runpolynomials, get_polynomialcoeffs
+from AIAmplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace
+from AIAmplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace
+
+rels_to_generate= {"first": [[500]*3,[0]*3],
+                            "double": [[500]*3,[0]*3],
+                            "triple": [[500],[1]],
+                            "dihedral": [[500],[1]],
+                            "final": [[500]*19+[500]*10,[0]*19+[1]*10],
+                            "integral": [[500]*3,[1]*3]
+                              }
+
+rels_to_generate_compact_default = {'first': [[500]*3, [0]*3],
+                                    'double': [[500]*3, [0]*3],
+                                    'triple': [[500], [1]],
+                                    'integral': [[500]*3, [1]*3]}
 
 def Phi2Symb(L, type=None):
     if not type:
