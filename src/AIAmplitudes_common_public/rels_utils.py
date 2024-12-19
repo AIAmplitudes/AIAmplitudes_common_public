@@ -1,11 +1,7 @@
 # script to generate json files of a user-defined set of linear relations matched with a given symbol
 # script to evaluate various linear relations satisfied by the symbols of the 3-point form factor of phi2
 
-import io
-import os
-import sys
-import math
-import re
+
 import numpy as np
 import time
 import datetime
@@ -123,8 +119,11 @@ def trivial_zero_rel_table(format="full"):
 def get_image(word, rownum):
     return ''.join([dihedral_table[rownum][idx] for idx in [alphabet.index(l) for l in [*word]]])
 
+def table_image(table):
+    return [{get_image(k,ind):v for k,v in rel.items()} for ind in range(len(alphabet)) for rel in table]
+
 def table_to_rels(table):
-    tr=[{get_image(k,ind):v for k,v in rel.items()} for ind in range(len(alphabet)) for rel in table]
+    tr=table_image(table)
     return [i for n, i in enumerate(tr) if not
                any(set(sorted(i.keys())) == set(sorted(k.keys())) for k in tr[n + 1:])]
 

@@ -5,7 +5,7 @@ from AIAmplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace
 from AIAmplitudes_common_public.rels_utils import alphabet,quad_prefix
 # fixed alphabet
 def Phi2Symb(L, type=None):
-    if not type:
+    if not type or type == "full":
         if L > 6:
             print("cannot encode uncompressed!")
             raise ValueError
