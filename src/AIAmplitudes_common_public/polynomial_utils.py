@@ -75,46 +75,6 @@ def polynom_convert(filename):
 def is_pow2(n):
     return (n != 0) and (n & (n - 1) == 0)
 
-def showcoeffs(i):
-    mydivs = {k: v for k, v in mycoeffs_nogcd.items() if len(v) > i and ('/' in str(v[i]))}
-    myints = {k: mycoeffs_nogcd[k] for k, v in mycoeffs_nogcd.items() if len(v) > i and ('/' not in str(v[i]))}
-
-    mydivs_enc = {k: [enc_elem(coef) for coef in mycoeffs_nogcd[k]] for k, v in mydivs.items()}
-    myints_enc = {k: [enc_elem(coef) for coef in mycoeffs_nogcd[k]] for k, v in myints.items()}
-
-    mydivs_enc_sel = {k: enc_elem(mycoeffs_nogcd[k][i]) for k, v in mydivs.items()}
-    myints_enc_sel = {k: enc_elem(mycoeffs_nogcd[k][i]) for k, v in myints.items()}
-
-    # myints_enc={k:[str(encode(elem)) for elem in mycoeffs_nogcd[k]] for k,v in mycoeffs_nogcd.items() if ('/' not in str(v[i]))}
-
-    my3div = {k: mydivs[k] for k, v in mydivs.items() if (Rational(v[i]).q % 3 == 0)}
-    my3div_enc = {k: mydivs_enc[k] for k in my3div}
-
-    my5div = {k: mydivs[k] for k, v in mydivs.items() if (Rational(v[i]).q % 5 == 0)}
-    my5div_enc = {k: mydivs_enc[k] for k in my5div}
-
-    my2int = {k: myints[k] for k, v in myints.items() if (int(v[i]) % 2 == 0)}
-    my2int_enc = {k: myints_enc[k] for k, v in myints.items() if (int(v[i]) % 2 == 0)}
-
-    mypow2int = {k: myints[k] for k, v in myints.items() if is_pow2(abs(int(v[i])))}
-    mypow2int_enc = {k: myints_enc[k] for k, v in myints.items() if is_pow2(abs(int(v[i])))}
-
-    my3int = {k: myints[k] for k, v in myints.items() if (int(v[i]) % 3 == 0)}
-    my3int_enc = {k: myints_enc[k] for k, v in myints.items() if (int(v[i]) % 3 == 0)}
-
-    my5int = {k: myints[k] for k, v in myints.items() if (int(v[i]) % 5 == 0)}
-    my5int_enc = {k: myints_enc[k] for k, v in myints.items() if (int(v[i]) % 5 == 0)}
-
-    my_all = mydivs | myints
-
-    outdict = {'all': my_all, 'div': mydivs, 'int': myints, 'divs_enc': mydivs_enc, 'ints_enc': myints_enc,
-               'divs_enc_sel': mydivs_enc_sel, 'ints_enc_sel': myints_enc_sel,
-               '2int': my2int, '2int_enc': my2int_enc, 'pow2int': mypow2int, 'pow2int_enc': mypow2int_enc,
-               '3div': my3div, '3div_enc': my3div_enc, '5div': my5div, '5div_enc': my5div_enc,
-               '3int': my3int, '3int_enc': my3int_enc, '5int': my5int, '5int_enc': my5int_enc}
-
-    return outdict
-
 def get_runpolynomials():
     allpolys = polynom_convert('all7_new_common_factor')
     nonzeros = {k:v for k, v in allpolys.items() if v != '0'}
@@ -144,10 +104,10 @@ def get_polynomialcoeffs(type):
         mycoeffs_unenc[k] = [[str(mygcd)],[c for c in myc]]
         mycoeffs[k] = [[str(mygcd)],[int_to_factors(c) for c in myc]]
 
+    myints = {k: mycoeffs_unenc[k] for k, v in mycoeffs.items() if ('/' not in v[0][0])}
+    mydivs = {k: v for k, v in mycoeffs.items() if ('/' in v[0][0])}
     # polynomials
     if type == "coeffs":
-        myints = {k: mycoeffs_unenc[k] for k, v in mycoeffs.items() if ('/' not in v[0][0])}
-        mydivs = {k: v for k, v in mycoeffs.items() if ('/' in v[0][0])}
         my_all = mydivs | myints
         return {'all':my_all, 'intcoeffs':myints, 'divcoeffs':mydivs}
     elif type == "coeffs_enc":

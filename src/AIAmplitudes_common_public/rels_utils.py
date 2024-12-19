@@ -15,15 +15,28 @@ import random
 import json
 import copy
 
-##############################################################################################
-# HOMOGENOUS LINEAR RELATIONS LOOK-UP TABLES#
-##############################################################################################
-# fixed alphabet
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f']
 quad_prefix = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 steinmanns={'a':'d', 'b':'e', 'c':'f', 'd':'aef', 'e':'bdf', 'f':'cde'}
-B_number= [0, 3, 6, 12, 24, 45, 85, 155, 289, None ] #<- dim_back
-F_number= [0, 3, 9, 21, 48, 108, 246, 555, 1251, None ]
+
+#How many rels of each type to generate? (phase-1 relgen approach)
+rels_to_generate= {"first": [[500]*3,[0]*3],
+                            "double": [[500]*3,[0]*3],
+                            "triple": [[500],[1]],
+                            "dihedral": [[500],[1]],
+                            "final": [[500]*19+[500]*10,[0]*19+[1]*10],
+                            "integral": [[500]*3,[1]*3]
+                              }
+
+rels_to_generate_compact_default = {'first': [[500]*3, [0]*3],
+                                    'double': [[500]*3, [0]*3],
+                                    'triple': [[500], [1]],
+                                    'integral': [[500]*3, [1]*3]}
+
+
+##############################################################################################
+# HOMOGENOUS LINEAR RELATIONS LOOK-UP TABLES#
+##############################################################################################
 
 ######### Nonlocal rels #################
 # triple-adjacency relation: plus dihedral symmetry; any slot
