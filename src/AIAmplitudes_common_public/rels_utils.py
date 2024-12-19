@@ -831,46 +831,47 @@ def get_relsum_and_nzero(rel_terms_list, nterm, p_norm):
                 print("overflow error! setting rel sum to -1")
                 relsum = -1
         yield relsum, n_nontrivial0_term
-
-
-
-
-
-
-##############################################################################################
-# DIHEDRAL SYMMETRY #
-##############################################################################################
-# Dihedral symmetry is only meaningful to check with the full data format. If symbol words are
-# represented in the compact formats of quad and oct, dihedral symmetry is already baked in,
-# and cannot be checked, as a dihedral rotation may take us outside the given quad/oct symbol.
-#
-# E.g., 'acddc', which spelled out in full is 'cddcdddd', can become 'aeeaeeee' upon
-# a dihedral rotation. But aeeaeeee is never in the given symb_quad in the first place,
-# as there is no quad letter to designate the suffice 'eeee'.
-#
-# Therefore, in this section, we assume all words are given in the full format.
-
-# a fixed look-up table for dihedral transformations
-
-
-
-#OLD:
-
-##############################################################################################
-# GET DIHEDRAL IMAGES OF RELATIONS #
-##############################################################################################
-##############################################################################################
-# GET TERMS IN SYMBOL RELATED BY CERTAIN RELATIONS #
-##############################################################################################
-##############################################################################################
-# CHECK RELATIONS IN SYMBOL #
-##############################################################################################
-
-
-
-##############################################################################################
-# ZERO SAMPLING  #
-##############################################################################################
-
-# Assume all words are in the full format (no quad, oct).
-
+def gen_let(inletter,type="next"):
+    # hardcode adjacency rules to generate nontrivial zeroes
+    assert type in {"next","last","first"}
+    tmat={'a':{"first":['a', 'b', 'c'],
+        "next":['a', 'b', 'c', 'e', 'f'],
+        "last":['e','f']},
+    'b': {"first":['a', 'b', 'c'],
+        "next":['a', 'b', 'c', 'd', 'f'],
+        "last":['d','f']},
+    'c':{"first":['a','b','c'],
+        "next":['a', 'b', 'c', 'd', 'e'],
+        "last":['d','e']},
+    'd':{"first":['b','c'],
+        "next":['b', 'c', 'd'],
+        "last":['e']},
+    'e':{"first":['a','c'],
+        "next":['a', 'c', 'e'],
+        "last":['e']},
+    'f':{"first":['a','b'],
+        "next":['a', 'b', 'f'],
+        "last":['f']}
+    }
+    letter = tmat[inletter][type][int(len(tmat[inletter][type]) * random.random())]
+    return letter
+def gen_valid_substr(to_gen, input=None, suffix=False):
+    # generate a valid substring. If input is given, build a string that is compatible with it.
+    # If 'suffix', gen a valid substring that can be reversed and prepended to input
+    # otherwise, gen a valid substring that can be appended to input
+    letter = ''
+    if input:
+        if suffix:
+            letter = input[0]
+        else:
+            letter = input[-1]
+    for i in range(to_gen):
+        if not suffix:
+            if i == 0:
+                mylist = ['a', 'b', 'c']
+                letter = mylist[int(len(mylist) * random.random())]
+        if suffix and (i == to_gen - 1):
+            letter = gen_let(letter,"first")
+        else:
+            letter = gen_let(letter,"next")
+        yield letter
