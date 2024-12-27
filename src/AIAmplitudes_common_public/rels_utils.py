@@ -181,11 +181,6 @@ def find_all(a_str, sub):
 # Auxiliary Functions
 #######################################################################################################################
 
-
-
-
-
-
 #needed
 def read_rel_info(rels_to_generate, make_zero_rels=False):
     '''
@@ -200,40 +195,39 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
 
     rels, slots, to_gens, overlaps, relnames = [], [], [], [], []
     for rel_key, rel_info in rels_to_generate.items():
-        for i in range(len(rel_info[0])):
-            if not make_zero_rels and rel_info[1][i] == 0: continue
-            myrel_table = {}
+        if rel_key == 'first':
+            myrel_table = get_rel_table_dihedral(first_entry_rel_table)
+            myslot = 0
+        elif rel_key == 'initial':
+            myrel_table = get_rel_table_dihedral(initial_entries_rel_table)
+            myslot = 0
+        elif rel_key == 'double':
+            myrel_table = get_rel_table_dihedral(double_adjacency_rel_table)
             myslot = None
-            if rel_key == 'first':
-                myrel_table = get_rel_table_dihedral(first_entry_rel_table)
-                myslot = 0
-            elif rel_key == 'initial':
-                myrel_table = get_rel_table_dihedral(initial_entries_rel_table)
-                myslot = 0
-            elif rel_key == 'double':
-                myrel_table = get_rel_table_dihedral(double_adjacency_rel_table)
-                myslot = None
-            elif rel_key == 'triple':
-                myrel_table = get_rel_table_dihedral(triple_adjacency_rel_table)
-                myslot = None
-            elif rel_key == 'integral':
-                myrel_table = get_rel_table_dihedral(integral_rel_table)
-                myslot = None
-            elif rel_key == 'final':
-                myrel_table = get_rel_table_dihedral(final_entries_rel_table)
-                myslot = -1
-            elif rel_key == 'dihedral':
-                myrel_table = [None] * len(rel_info[0])
-                myslot = None
-            else:
-                print("unknown relation!")
-                raise ValueError
+        elif rel_key == 'triple':
+            myrel_table = get_rel_table_dihedral(triple_adjacency_rel_table)
+            myslot = None
+        elif rel_key == 'integral':
+            myrel_table = get_rel_table_dihedral(integral_rel_table)
+            myslot = None
+        elif rel_key == 'final':
+            myrel_table = get_rel_table_dihedral(final_entries_rel_table)
+            myslot = -1
+        elif rel_key == 'dihedral':
+            myrel_table = [None] * len(rel_info[0])
+            myslot = None
+        else:
+            print("unknown relation!")
+            raise ValueError
 
+        for i in range(len(rel_info[0])):
+            if (not make_zero_rels) and (rel_info[1][i] == 0): continue
             rels.append(myrel_table[i])
             slots.append(myslot)
             to_gens.append(rel_info[0][i])
             overlaps.append(rel_info[1][i])
             relnames.append(f'{rel_key}_{i}')
+
     return rels, slots, to_gens, overlaps, relnames
 def get_coeff_from_word(word, symb):
     '''
@@ -682,7 +676,7 @@ def get_rel_table_dihedral(rel_table):
             if dict_tuple not in seen_rel_table_dihedral:
                 seen_rel_table_dihedral.add(dict_tuple)
                 unique_rel_table_dihedral.append(d)
-
+    print(unique_rel_table_dihedral)
     return unique_rel_table_dihedral
 def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full'):
     '''
