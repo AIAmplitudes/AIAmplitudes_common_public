@@ -30,6 +30,18 @@ rels_to_generate_compact_default = {'first': [[500]*3, [0]*3],
                                     'integral': [[500]*3, [1]*3]}
 
 
+# Removing duplicates
+def dropdups(dicts):
+    return [dict(t) for t in {frozenset(d.items()) for d in dicts}]
+
+def dropmdups(dicts):
+    # also drop scalar multiples
+    def normalize(dict):
+        #sort keys into alphabetical order
+        firstval=sorted(dict.items())[0][1]
+        return {k:(int(elem) if (elem := v/firstval).is_integer() else elem) for k,v in dict.items()}
+    return dropdups([normalize(dict) for dict in dicts])
+
 ##############################################################################################
 # HOMOGENOUS LINEAR RELATIONS LOOK-UP TABLES#
 ##############################################################################################
@@ -229,6 +241,61 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
             relnames.append(f'{rel_key}_{i}')
 
     return rels, slots, to_gens, overlaps, relnames
+
+def read_allrel_info(rels_to_generate, make_zero_rels=False):
+    '''
+    Prepare to generate all rels of the types in the rel_info dict- ignore ordering
+    ---------
+    INPUTS:
+    rels_to_generate that does not specify subtype. rels_to_gen is
+    {"initial":[1000],
+    "final":[2000], etc.}"
+
+    OUTPUTS:
+    rels, slots, to_gens, overlaps, relnames: lists; consisting of: relation dicts, slots for rel, num to generate per rel, how much to overlap with sym, name of rel.
+    '''
+
+    rels, slots, to_gens, overlaps, relnames = [], [], [], [], []
+    for rel_key, rel_info in rels_to_generate.items():
+        if rel_key == 'first':
+            myrel_table = dropmdups(get_rel_table_dihedral(first_entry_rel_table))
+            myslot = 0
+        elif rel_key == 'initial':
+            myrel_table = dropmdups(get_rel_table_dihedral(initial_entries_rel_table))
+            myslot = 0
+        elif rel_key == 'double':
+            myrel_table = dropmdups(get_rel_table_dihedral(double_adjacency_rel_table))
+            myslot = None
+        elif rel_key == 'triple':
+            myrel_table = dropmdups(get_rel_table_dihedral(triple_adjacency_rel_table))
+            myslot = None
+        elif rel_key == 'integral':
+            myrel_table = dropmdups(get_rel_table_dihedral(integral_rel_table))
+            myslot = None
+        elif rel_key == 'final':
+            myrel_table = dropmdups(get_rel_table_dihedral(final_entries_rel_table))
+            myslot = -1
+        elif rel_key == 'dihedral':
+            myrel_table = [None] * len(rel_info[0])
+            myslot = None
+        else:
+            print("unknown relation!")
+            raise ValueError
+
+        #establish a canonical order for the rels
+        myrel_table.sort(key= lambda d:((len(d)), list(d.keys())))
+
+        for i,rel in enumerate(myrel_table):
+            if (not make_zero_rels) and (len(rel) == 1): continue
+            rels.append(rel)
+            slots.append(myslot)
+            to_gens.append(rel_info[0][0])
+            overlaps.append(0 if (len(rel) == 1) else 1)
+            relnames.append(f'{rel_key}_{i}')
+
+    return rels, slots, to_gens, overlaps, relnames
+
+
 def get_coeff_from_word(word, symb):
     '''
     Get the coeff of a given word in a symbol.
@@ -669,15 +736,17 @@ def get_rel_table_dihedral(rel_table):
 
             rel_table_dihedral.append(rel_dihedral)
 
-        seen_rel_table_dihedral = set()
+    return dropdups(rel_table_dihedral)
 
-        for d in rel_table_dihedral:
-            dict_tuple = tuple(sorted(d.items()))
-            if dict_tuple not in seen_rel_table_dihedral:
-                seen_rel_table_dihedral.add(dict_tuple)
-                unique_rel_table_dihedral.append(d)
-    print(unique_rel_table_dihedral)
-    return unique_rel_table_dihedral
+    #seen_rel_table_dihedral = set()
+
+    #    for d in rel_table_dihedral:
+    #dict_tuple = tuple(sorted(d.items()))
+    #        if dict_tuple not in seen_rel_table_dihedral:
+    #            seen_rel_table_dihedral.add(dict_tuple)
+    #            unique_rel_table_dihedral.append(d)
+
+    #return unique_rel_table_dihedral
 def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full'):
     '''
     Given a word, get the related term(s) in the given symbol according to the specified relation.
