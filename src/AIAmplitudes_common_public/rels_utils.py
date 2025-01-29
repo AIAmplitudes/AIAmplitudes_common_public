@@ -5,6 +5,7 @@
 import numpy as np
 import time
 import datetime
+import re
 import itertools
 from itertools import permutations
 import random
@@ -178,12 +179,16 @@ def sumdict(k, d1, d2):
 
 
 def find_all(a_str, sub):
-    start = 0
-    while True:
-        start = a_str.find(sub, start)
-        if start == -1: return
-        yield start
-        start += len(sub)
+    for match in re.finditer(re.escape(sub), a_str):
+        yield match
+
+
+    #start = 0
+    #while True:
+    #    start = a_str.find(sub, start)
+    #    if start == -1: return
+    #    yield start
+    #    start += 1
 
 
 
@@ -282,16 +287,25 @@ def read_allrel_info(rels_to_generate, make_zero_rels=False):
             print("unknown relation!")
             raise ValueError
 
-        #establish a canonical order for the rels
-        myrel_table.sort(key= lambda d:((len(d)), list(d.keys())))
-
-        for i,rel in enumerate(myrel_table):
+        #establish a canonical order for the rels of a given type: sort by num letters,
+        #then shortest to longest, then alphabetical by keys as list
+        myrel_table.sort(key= lambda d:(len(next(iter(d))), (len(d)), list(d.keys())))
+        i, mylen=0,0
+        for rel in myrel_table:
+            if rel_key == "final" and len(next(iter(rel))) != mylen:
+                i = 0
+                mylen=len(next(iter(rel)))
             if (not make_zero_rels) and (len(rel) == 1): continue
+
             rels.append(rel)
             slots.append(myslot)
             to_gens.append(rel_info[0][0])
             overlaps.append(0 if (len(rel) == 1) else 1)
-            relnames.append(f'{rel_key}_{i}')
+            if rel_key == "final":
+                relnames.append(f'{rel_key}{mylen}_{i}')
+            else:
+                relnames.append(f'{rel_key}_{i}')
+            i += 1
 
     return rels, slots, to_gens, overlaps, relnames
 
