@@ -4,8 +4,6 @@ from AIAmplitudes_common_public.download_data import download_all
 from fractions import Fraction
 relpath=_cache_path(None)
 
-if down
-
 def convert(filename, loop=None, reptype=None):
     #reptype: quad, oct, ae, aef, None
     if reptype in {"oct","quad"}:
