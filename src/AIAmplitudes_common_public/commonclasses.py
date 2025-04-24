@@ -1,15 +1,28 @@
 import copy
 import random
 import argparse
+from fractions import Fraction
 
 #some classes to hold the data in different formats.
 #symb is an overload of dict with some elementwise operators on values,
 #sumlist is an overload of list with elementwise sum and multiplication operations
 
 class Symb(dict):
+    def dict(self):
+        return {k:v for k,v in self.items()}
+
+    def int_if(self,x):
+        return int(x) if float(x).is_integer() else x
+
     def valmult(self,m,d1):
-        return {k:(m*v) for k,v in d1.items()}
-    
+        return {k:self.int_if(m*v) for k,v in d1.items()}
+
+    def valdiv(self,m,d1):
+        return {k:self.int_if(v/m) for k,v in d1.items()}
+
+    def intcast(self):
+        return Symb(self.dict())
+
     def dictmerge(self,d1,d2):
         def getval(k):
             if k in d1 and k in d2: val= d1[k]+d2[k]
@@ -52,11 +65,29 @@ class Symb(dict):
     
     def __rmul__(self,const):
         return Symb(self.valmult(const,self))
-    
-    def __getitem__(self,key):
-        if key in self: return super().__getitem__(key)
-        else: return 0
-    
+
+    def __truediv__(self,const):
+        return Symb(self.valdiv(const,self))
+
+    def __and__(self, othersymb):
+        if isinstance(othersymb,Symb):
+            return Symb(self.dict() & othersymb.dict())
+        else:
+            return Symb(self.dict() & othersymb)
+
+    def __rand__(self, othersymb):
+        return self.__and__(othersymb)
+
+    def __or__(self, othersymb):
+        if isinstance(othersymb,Symb):
+            return Symb(self.dict() | othersymb.dict())
+        else:
+            return Symb(self.dict() | othersymb)
+
+    def __ror__(self, othersymb):
+        return self.__or__(othersymb)
+
+
 class sumlist():
     def __init__(self,mylist):
         self.list=mylist

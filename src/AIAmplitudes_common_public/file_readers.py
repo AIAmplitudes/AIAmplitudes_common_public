@@ -1,7 +1,10 @@
 import re,os
 from AIAmplitudes_common_public.download_data import _cache_path
+from AIAmplitudes_common_public.download_data import download_all
 from fractions import Fraction
 relpath=_cache_path(None)
+
+if down
 
 def convert(filename, loop=None, reptype=None):
     #reptype: quad, oct, ae, aef, None
@@ -25,7 +28,6 @@ def convert(filename, loop=None, reptype=None):
     else:
         dev = re.split(":=|SB\(|\)", re.sub('[,*]', '',
                                             readSymb(filename, 'Esymb', loop)))[1:-1]
-
     keys = dev[1::2]
     values = [int(re.sub('[+-]$', t[0] + '1', t)) for t in dev[0::2]]
     out_dict = {k:v for k, v in zip(keys, values)}

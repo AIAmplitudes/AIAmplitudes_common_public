@@ -3,8 +3,11 @@ import os
 from fractions import Fraction
 from AIAmplitudes_common_public.file_readers import readSymb, readFile, SB_to_dict,relpath
 
-B_number= [0, 3, 6, 12, 24, 45, 85, 155, 289, None ] #<- dim_back
+B_number= [0, 3, 6, 12, 24, 45, 85, 155, 279, None ] #<- dim_back
 F_number= [0, 3, 9, 21, 48, 108, 246, 555, 1251, None ]
+
+NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, None ] #<-num_bspace_rels
+NF_rels= [0, 3, 9, 33] #<-num_fspace_rels
 
 bspacenames = {1: 'singleindep3',
                2: 'doubleindep6',

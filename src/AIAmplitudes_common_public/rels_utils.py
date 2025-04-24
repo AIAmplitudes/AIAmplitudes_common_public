@@ -114,6 +114,14 @@ initial_entries_rel_table = [{'ad': 1},
                              {'aac': 1, 'cca': 1, 'bbc': -1, 'ccb': -1, 'afa': 1 / 2, 'aaf': -1 / 2, 'bbf': 1 / 2,
                               'afb': -1 / 2}]
 
+all_rel_table={'first': first_entry_rel_table,
+               'double': double_adjacency_rel_table,
+               'triple': triple_adjacency_rel_table,
+               'integral': integral_rel_table,
+               'final': final_entries_rel_table,
+               'initial': initial_entries_rel_table}
+
+
 def trivial_zero_rel_table(format="full"):
     myrel_table = first_entry_rel_table
     slots = [0] * len(first_entry_rel_table)
@@ -242,7 +250,8 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
             rels.append(myrel_table[i])
             slots.append(myslot)
             to_gens.append(rel_info[0][i])
-            overlaps.append(rel_info[1][i])
+            if len(myrel_table[i]) == 1: overlaps.append(0)
+            else: overlaps.append(rel_info[1][i])
             relnames.append(f'{rel_key}_{i}')
 
     return rels, slots, to_gens, overlaps, relnames
