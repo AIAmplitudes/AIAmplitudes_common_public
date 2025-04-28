@@ -3,8 +3,8 @@ import datetime
 
 from scipy.special import binom
 import random
-from AIAmplitudes_common_public.rels_utils import get_coeff_from_word,check_slot,find_all,alphabet,count_appearances
-from AIAmplitudes_common_public.commonclasses import fastRandomSampler
+from aiamplitudes_common_public.rels_utils import get_coeff_from_word,check_slot,find_all,alphabet,count_appearances
+from aiamplitudes_common_public.commonclasses import fastRandomSampler
 
 ##########################
 # generators for op_args
