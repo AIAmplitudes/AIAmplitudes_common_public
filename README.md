@@ -1,5 +1,5 @@
 # aiamplitudes_common_public
-Common public utils library for the "AI for Scattering Amplitudes" project.
+Common public utils library for the "AI for Scattering Amplitudes" project, located at: https://github.com/AIAmplitudes/AIAmplitudes_common_public/
 
 src/
 __init__.py- import-level objects and functions. These include the Phi2 and Phi3 symbols, the front and back spaces and relations in various weights and formats, run-polynomials, and their coeffs.
