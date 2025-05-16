@@ -14,9 +14,11 @@ def _cache_path(cache_dir: str | None = None) -> Path:
         ampdir = Path.home() / ".local" / "AIAmplitudesData"
         try:
             ampdir.mkdir(exist_ok=True, parents=True)
-        except FileNotFoundError: 
-            print('Could not make dir, but still setting path. Do you need this?')
-        return ampdir
+        except:
+            print('Could not make dir. Defaulting to local cache')
+            os.mkdir('./cache')
+            ampdir='./cache'
+        return Path(ampdir)
     return Path(cache_dir)
 
 relpath = _cache_path(None)
