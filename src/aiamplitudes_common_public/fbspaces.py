@@ -1,7 +1,8 @@
 import re
 import os
 from fractions import Fraction
-from aiamplitudes_common_public.file_readers import readSymb, readFile, SB_to_dict,relpath
+from aiamplitudes_common_public.file_readers import readSymb, readFile, SB_to_dict
+from aiamplitudes_common_public.download_data import relpath
 
 B_number= [0, 3, 6, 12, 24, 45, 85, 155, 279, None ] #<- dim_back
 F_number= [0, 3, 9, 21, 48, 108, 246, 555, 1251, None ]

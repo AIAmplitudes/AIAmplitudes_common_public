@@ -2,7 +2,6 @@ import re,os
 from aiamplitudes_common_public.download_data import _cache_path
 from aiamplitudes_common_public.download_data import download_all
 from fractions import Fraction
-relpath=_cache_path(None)
 
 def convert(filename, loop=None, reptype=None):
     #reptype: quad, oct, ae, aef, None

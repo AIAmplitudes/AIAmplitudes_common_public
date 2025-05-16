@@ -606,7 +606,7 @@ def check_rel(rel_terms_list, return_rel_info=False, p_norm=None):
     if rel_terms_list is None:
         return None
 
-    relsum_list, relnontrivial0_list = zip(*[(elem) for elem in get_relsum_and_nzero(rel_terms_list, p_norm)])
+    relsum_list, relnontrivial0_list = zip(*[(elem) for elem in get_relsum_and_nzero(rel_terms_list, nterm, p_norm)])
 
     if not relsum_list:
         percent = None
@@ -892,6 +892,7 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
                 rel_terms_list.append(rel_terms_pos)
 
         return list(itertools.chain(*rel_terms_list))
+
 def get_relsum_and_nzero(rel_terms_list, nterm, p_norm):
     for rel_terms in rel_terms_list:
         relsum = 0

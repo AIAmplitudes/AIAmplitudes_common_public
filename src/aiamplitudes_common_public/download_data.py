@@ -12,7 +12,10 @@ public_repo =  "AIAmplitudes/data_public"
 def _cache_path(cache_dir: str | None = None) -> Path:
     if cache_dir is None:
         ampdir = Path.home() / ".local" / "AIAmplitudesData"
-        ampdir.mkdir(exist_ok=True, parents=True)
+        try:
+            ampdir.mkdir(exist_ok=True, parents=True)
+        except FileNotFoundError: 
+            print('Could not make dir, but still setting path. Do you need this?')
         return ampdir
     return Path(cache_dir)
 
