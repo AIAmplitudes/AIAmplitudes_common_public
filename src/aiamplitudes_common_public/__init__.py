@@ -75,24 +75,24 @@ def bp_1l_rels(w,mydir=relpath):
 def bp_2l_rels(w,mydir=relpath):
     return get_relpermdict(mydir, w, "back", "twoletter")
 
-def fspace(w,rp="p"):
-    if rp == "p": return get_perm_fspace(w)[0]
-    elif rp == "r": return get_rest_fspace(w)[0]
+def fspace(w,rp="P"):
+    if rp == "P": return get_perm_fspace(w)[0]
+    elif rp == "R": return get_rest_fspace(w)[0]
     else: return
 
-def bspace(w,rp="p"):
-    if rp == "p": return get_perm_bspace(w)[0]
-    elif rp == "r": return get_rest_bspace(w)[0]
+def bspace(w,rp="P"):
+    if rp == "P": return get_perm_bspace(w)[0]
+    elif rp == "R": return get_rest_bspace(w)[0]
     else: return
 
-def fspace_flip(w,rp="p"):
-    if rp == "p": return get_perm_fspace(w)[1]
-    elif rp == "r": return get_rest_fspace(w)[1]
+def fspace_flip(w,rp="P"):
+    if rp == "P": return get_perm_fspace(w)[1]
+    elif rp == "R": return get_rest_fspace(w)[1]
     else: return
 
-def bspace_flip(w,rp="p"):
-    if rp == "p": return get_perm_bspace(w)[1]
-    elif rp == "r": return get_rest_bspace(w)[1]
+def bspace_flip(w,rp="P"):
+    if rp == "P": return get_perm_bspace(w)[1]
+    elif rp == "R": return get_rest_bspace(w)[1]
     else: return
 
 
