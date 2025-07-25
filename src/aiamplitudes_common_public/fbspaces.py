@@ -82,8 +82,7 @@ def get_perm_bspace(w):
 
 
 def get_rest_bspace(w):
-    print(relpath)
-    prefix = 'multifinal_new_norm'
+    prefix = 'multifinal'
     assert os.path.isfile(f'{relpath}/{prefix}')
     print(bspacenames)
     res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
