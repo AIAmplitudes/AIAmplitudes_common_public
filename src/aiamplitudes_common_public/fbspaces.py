@@ -84,7 +84,15 @@ def get_perm_bspace(w):
 def get_rest_bspace(w):
     prefix = 'multifinal'
     assert os.path.isfile(f'{relpath}/{prefix}')
-    print(bspacenames)
+    res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
+    myset = {elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem}
+    myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myset)}
+    flip = {f'BR_{w}_{i}': elem for i, elem in enumerate(myset)}
+    return flip, myd
+
+def get_rest_bspace_OLD(w):
+    prefix = 'multifinal_new_norm'
+    assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
     myset = {elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem}
     myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myset)}
