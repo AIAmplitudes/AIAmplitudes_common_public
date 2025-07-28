@@ -7,8 +7,13 @@ import os
 import requests
 from pathlib import Path
 
+username= None
+password = None
+
 ################### Download tarballs from git ###############################
 public_repo =  "AIAmplitudes/data_public"
+private_repo =  "AIAmplitudes/data_private"
+
 def _cache_path(cache_dir: str | None = None) -> Path:
     if cache_dir is None:
         ampdir = Path.home() / ".local" / "AIAmplitudesData"
@@ -43,7 +48,8 @@ def download_unpack(myfile: str, local_dir: Path):
             tarf.extractall(path=local_dir)
     return
 
-def download_all(repo: str = public_repo, cache_dir: str | None = None) -> None:
+def download_all_public(repo: str = public_repo, cache_dir: str | None = None) -> None:
+    #use BS4 to get all the datasets in the public repo
     local_dir = _cache_path(cache_dir)
     if not len(os.listdir(local_dir))==0:
         print("Local cache not empty! Terminating")
@@ -74,4 +80,16 @@ def download_all(repo: str = public_repo, cache_dir: str | None = None) -> None:
             deleted.add(thisdir)
     return
 
+def download_all_private(mytoken, repo: str = public_repo, cache_dir: str | None = None) -> None:
+    #use the github CLI and token access to get datasets in the private repo
+    g = Github(token)
+    repo_dir = relpath
+    git_url = "https://github.com/AIAmplitudes/data_public.git"
+    Repo.clone_from(git_url, repo_dir)
+    return
+
+def download_all(mytoken = None):
+    if mytoken: download_all_private(mytoken)
+    download_all_public()
+    return
 #######################################################################################
