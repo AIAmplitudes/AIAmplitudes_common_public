@@ -80,32 +80,31 @@ def get_perm_bspace(w):
             flipdict[term][elem] = basedict[elem][term]
     return basedict, flipdict
 
-
 def get_rest_bspace(w):
     prefix = 'multifinal'
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
-    myset = {elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem}
-    myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myset)}
-    flip = {f'BR_{w}_{i}': elem for i, elem in enumerate(myset)}
+    myindeps = [elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
+    myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myindeps)}
+    flip = {f'BR_{w}_{i}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
 
 def get_rest_bspace_OLD(w):
     prefix = 'multifinal_new_norm'
     assert os.path.isfile(f'{relpath}/{prefix}')
-    res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
-    myset = {elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem}
-    myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myset)}
-    flip = {f'BR_{w}_{i}': elem for i, elem in enumerate(myset)}
+    res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w])+' ')
+    myindeps = [elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
+    myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myindeps)}
+    flip = {f'BR_{w}_{i}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
 
 def get_rest_fspace(w):
     prefix='multiinitial'
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(fspacenames[w]))
-    myset = {elem for elem in re.split(":=\[|SB\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem}
-    myd = {elem: f'FR_{w}_{i}' for i, elem in enumerate(myset)}
-    flip = {f'FR_{w}_{i}': elem for i, elem in enumerate(myset)}
+    myindeps = [elem for elem in re.split(":=\[|SB\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
+    myd = {elem: f'FR_{w}_{i}' for i, elem in enumerate(myindeps)}
+    flip = {f'FR_{w}_{i}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
 
 def getBrel_eqs(f, w):
@@ -116,7 +115,6 @@ def getBrel_eqs(f, w):
 
 def getFrel_eqs(f, w):
     if w < 7:
-        print(str(frelnames[w]))
         res = readFile(f, str(frelnames[w]))
         out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
                                                         re.sub(',\s*(?=[^()]*\))', '', res))[1:]]
