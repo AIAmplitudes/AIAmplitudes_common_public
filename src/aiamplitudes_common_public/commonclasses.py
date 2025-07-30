@@ -42,7 +42,46 @@ class Symb(dict):
             return val
     
         return{k:getval(k) for k in d1|d2 if getval(k) != 0}
-    
+
+    def add_small(self, othersymb):
+        if isinstance(othersymb,Symb): os=othersymb
+        else: os=Symb(othersymb)
+
+        def getval(k):
+            if k in self and k in othersymb:
+                val = self[k] + othersymb[k]
+            elif k in self:
+                val = self[k]
+            elif k in othersymb:
+                val = othersymb[k]
+            else:
+                val = None
+            return val
+
+        for k in othersymb: self[k] = getval(k)
+        return self
+
+    def sub_small(self, othersymb):
+        #subtract the othersymb from self
+        if isinstance(othersymb, Symb):
+            os = othersymb
+        else:
+            os = Symb(othersymb)
+
+        def getval(k):
+            if k in self and k in othersymb:
+                val = self[k] - othersymb[k]
+            elif k in self:
+                val = self[k]
+            elif k in othersymb:
+                val = othersymb[k]
+            else:
+                val = None
+            return val
+
+        for k in othersymb: self[k] = getval(k)
+        return self
+
     def __add__(self, othersymb):
         if isinstance(othersymb,Symb): os=othersymb
         else: os=Symb(othersymb)

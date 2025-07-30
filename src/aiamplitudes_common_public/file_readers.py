@@ -8,10 +8,10 @@ def convert(filename, loop=None, reptype=None):
     if reptype in {"oct","quad"}:
         if reptype== "oct":
             base = readSymb(filename, 'Esymboct', loop)[:-2]
-            prefix = [f'Br_8_{i}' for i in range(93)]
+            prefix = [f'BR_8_{i}' for i in range(93)]
         elif reptype == "quad":
             base = readSymb(filename, 'Esymbquad', loop)[:-2]
-            prefix = [f'Br_4_{i}' for i in range(8)]
+            prefix = [f'BR_4_{i}' for i in range(8)]
         base = re.sub(' ', '', base)
         t = re.split(":=\[|\),|\)\]", base)[1:]
         if len(t[-1]) == 0: t = t[:-1]
@@ -19,7 +19,7 @@ def convert(filename, loop=None, reptype=None):
         dev = []
         for i, ss in enumerate(s):
             for j, tt in enumerate(ss[1::2]):
-                s[i][1 + 2 * j] = prefix[i] + tt
+                s[i][1 + 2 * j] = tt+'@'+prefix[i]
             dev += s[i]
         if len(dev[-1]) == 0: dev = dev[:-1]
     else:
@@ -111,9 +111,9 @@ def readcrel(crel, w=2, seam="back"):
         for i in numlet:
             if i.isnumeric():
                 if seam == "front":
-                    o.append(f'Fp_{w}_{i}@')
+                    o.append(f'FP_{w}_{i}@')
                 elif seam == "back":
-                    o.append(f'@Bp_{w}_{i}')
+                    o.append(f'@BP_{w}_{i}')
                 else:
                     raise ValueError
             else:
