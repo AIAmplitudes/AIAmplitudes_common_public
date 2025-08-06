@@ -58,7 +58,7 @@ def get_perm_fspace(w):
     mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}','frontspace',w)))
     newstr = re.split(":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
-    basedict = {f'FP_{w}_{i}': SB_to_dict(el) for i, el in enumerate(dev)}
+    basedict = {f'FP_{w}_{i+1}': SB_to_dict(el) for i, el in enumerate(dev)}
     flipdict = {}
     for elem, elemdict in basedict.items():
         for term, coef in elemdict.items():
@@ -72,7 +72,7 @@ def get_perm_bspace(w):
     mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}', 'backspace', w)))
     newstr = re.split(":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
-    basedict = {f'BP_{w}_{i}': SB_to_dict(el) for i, el in enumerate(dev)}
+    basedict = {f'BP_{w}_{i+1}': SB_to_dict(el) for i, el in enumerate(dev)}
     flipdict = {}
     for elem, elemdict in basedict.items():
         for term, coef in elemdict.items():
@@ -85,8 +85,8 @@ def get_rest_bspace(w):
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
     myindeps = [elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
-    myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myindeps)}
-    flip = {f'BR_{w}_{i}': elem for i, elem in enumerate(myindeps)}
+    myd = {elem: f'BR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
+    flip = {f'BR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
 
 def get_rest_bspace_OLD(w):
@@ -94,8 +94,8 @@ def get_rest_bspace_OLD(w):
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w])+' ')
     myindeps = [elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
-    myd = {elem: f'BR_{w}_{i}' for i, elem in enumerate(myindeps)}
-    flip = {f'BR_{w}_{i}': elem for i, elem in enumerate(myindeps)}
+    myd = {elem: f'BR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
+    flip = {f'BR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
 
 def get_rest_fspace(w):
@@ -103,8 +103,8 @@ def get_rest_fspace(w):
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(fspacenames[w]))
     myindeps = [elem for elem in re.split(":=\[|SB\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
-    myd = {elem: f'FR_{w}_{i}' for i, elem in enumerate(myindeps)}
-    flip = {f'FR_{w}_{i}': elem for i, elem in enumerate(myindeps)}
+    myd = {elem: f'FR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
+    flip = {f'FR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
 
 def getBrel_eqs(f, w):
@@ -160,6 +160,11 @@ def rel_to_dict(relstring, bspace=True):
     return {newstring[0]: reldict}
 
 def get_brels(w,relpath):
+    assert (w > 0 and w < 10)
+    with open(f'{relpath}/multifinal', 'rt') as f:
+        return {k: v for j in getBrel_eqs(f, w) for k, v in rel_to_dict(j).items() if k}
+
+def get_brels_OLD(w,relpath):
     assert (w > 0 and w < 10)
     with open(f'{relpath}/multifinal_new_norm', 'rt') as f:
         return {k: v for j in getBrel_eqs(f, w) for k, v in rel_to_dict(j).items() if k}
