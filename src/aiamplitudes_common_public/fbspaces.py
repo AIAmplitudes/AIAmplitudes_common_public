@@ -6,8 +6,8 @@ from aiamplitudes_common_public.commonclasses import Symb
 from aiamplitudes_common_public.file_readers import readSymb, readFile, SB_to_dict
 from aiamplitudes_common_public.download_data import relpath
 
-B_number= [0, 3, 6, 12, 24, 45, 85, 155, 279, None ] #<- dim_back
-F_number= [0, 3, 9, 21, 48, 108, 246, 555, 1251, None ]
+B_number= [1, 3, 6, 12, 24, 45, 85, 155, 279, None ] #<- dim_back
+F_number= [1, 3, 9, 21, 48, 108, 246, 555, 1251, None ]
 
 NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, None ] #<-num_bspace_rels
 NF_rels= [0, 3, 9, 33, 78, 180, 402, 921, 2079, None] #<-num_fspace_rels

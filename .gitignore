@@ -183,3 +183,6 @@ src/aiamplitudes_common_public/_version.py
 .pixi
 *.egg-info
 pixi.lock
+
+# Mac generated file
+*.DS_Store
