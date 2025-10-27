@@ -121,7 +121,6 @@ all_rel_table={'first': first_entry_rel_table,
                'final': final_entries_rel_table,
                'initial': initial_entries_rel_table}
 
-
 def trivial_zero_rel_table(format="full"):
     myrel_table = first_entry_rel_table
     slots = [0] * len(first_entry_rel_table)
@@ -148,9 +147,7 @@ def table_to_rels(table):
     return [i for n, i in enumerate(tr) if not
                any(set(sorted(i.keys())) == set(sorted(k.keys())) for k in tr[n + 1:])]
 
-pair_rels=table_to_rels(pair_table)
-triple_rels=table_to_rels(triple_table)
-############################################################################################################
+
 def sumstring(i, mystring, k, v):
     if v == 1:
         if i == 0:
@@ -221,22 +218,22 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
     rels, slots, to_gens, overlaps, relnames = [], [], [], [], []
     for rel_key, rel_info in rels_to_generate.items():
         if rel_key == 'first':
-            myrel_table = get_rel_table_dihedral(first_entry_rel_table)
+            myrel_table = first_entry_rel_table
             myslot = 0
         elif rel_key == 'initial':
-            myrel_table = get_rel_table_dihedral(initial_entries_rel_table)
+            myrel_table = initial_entries_rel_table
             myslot = 0
         elif rel_key == 'double':
-            myrel_table = get_rel_table_dihedral(double_adjacency_rel_table)
+            myrel_table = double_adjacency_rel_table
             myslot = None
         elif rel_key == 'triple':
-            myrel_table = get_rel_table_dihedral(triple_adjacency_rel_table)
+            myrel_table = triple_adjacency_rel_table
             myslot = None
         elif rel_key == 'integral':
-            myrel_table = get_rel_table_dihedral(integral_rel_table)
+            myrel_table = integral_rel_table
             myslot = None
         elif rel_key == 'final':
-            myrel_table = get_rel_table_dihedral(final_entries_rel_table)
+            myrel_table = final_entries_rel_table
             myslot = -1
         elif rel_key == 'dihedral':
             myrel_table = [None] * len(rel_info[0])
@@ -318,7 +315,6 @@ def read_allrel_info(rels_to_generate, make_zero_rels=False):
 
     return rels, slots, to_gens, overlaps, relnames
 
-
 def get_coeff_from_word(word, symb):
     '''
     Get the coeff of a given word in a symbol.
@@ -333,6 +329,7 @@ def get_coeff_from_word(word, symb):
     if word in symb:
         return symb[word]
     return 0
+
 def get_word_from_coeff(coeff, symb):
     '''
     Get the words corresponding to a given coeff in a symbol.
@@ -733,6 +730,7 @@ def is_trivial0(word):
                 return True
 
     return False
+
 def get_rel_table_dihedral(rel_table):
     '''
     Given a relation table, output all the dihedral images of each relation,
@@ -761,15 +759,17 @@ def get_rel_table_dihedral(rel_table):
 
     return dropdups(rel_table_dihedral)
 
-    #seen_rel_table_dihedral = set()
+######################################################
+pair_rels=table_to_rels(pair_table)
+allpair_rels=table_to_rels(dropmdups(get_rel_table_dihedral(pair_table)))
+triple_rels=table_to_rels(triple_table)
+alltriple_rels=table_to_rels(dropmdups(get_rel_table_dihedral(triple_table)))
+steinmann_rels=table_to_rels(double_adjacency_rel_table)
+allsteinmann_rels=table_to_rels(dropmdups(get_rel_table_dihedral(double_adjacency_rel_table)))
+integ_rels=table_to_rels(integral_rel_table)
+allinteg_rels=table_to_rels(dropmdups(get_rel_table_dihedral(integral_rel_table)))
+######################################################
 
-    #    for d in rel_table_dihedral:
-    #dict_tuple = tuple(sorted(d.items()))
-    #        if dict_tuple not in seen_rel_table_dihedral:
-    #            seen_rel_table_dihedral.add(dict_tuple)
-    #            unique_rel_table_dihedral.append(d)
-
-    #return unique_rel_table_dihedral
 def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full'):
     '''
     Given a word, get the related term(s) in the given symbol according to the specified relation.
