@@ -114,12 +114,14 @@ initial_entries_rel_table = [{'ad': 1},
                              {'aac': 1, 'cca': 1, 'bbc': -1, 'ccb': -1, 'afa': 1 / 2, 'aaf': -1 / 2, 'bbf': 1 / 2,
                               'afb': -1 / 2}]
 
-all_rel_table={'first': first_entry_rel_table,
+nonimaged_rel_table={'first': first_entry_rel_table,
                'double': double_adjacency_rel_table,
                'triple': triple_adjacency_rel_table,
                'integral': integral_rel_table,
                'final': final_entries_rel_table,
                'initial': initial_entries_rel_table}
+
+
 
 def trivial_zero_rel_table(format="full"):
     myrel_table = first_entry_rel_table
@@ -768,6 +770,14 @@ steinmann_rels=table_to_rels(double_adjacency_rel_table)
 allsteinmann_rels=table_to_rels(dropmdups(get_rel_table_dihedral(double_adjacency_rel_table)))
 integ_rels=table_to_rels(integral_rel_table)
 allinteg_rels=table_to_rels(dropmdups(get_rel_table_dihedral(integral_rel_table)))
+
+all_rel_table={'first': dropmdups(get_rel_table_dihedral(first_entry_rel_table)),
+               'double': dropmdups(get_rel_table_dihedral(double_adjacency_rel_table)),
+               'triple': dropmdups(get_rel_table_dihedral(triple_table)),
+               'integral': dropmdups(get_rel_table_dihedral(integral_rel_table)),
+               'final': dropmdups(get_rel_table_dihedral(final_entries_rel_table)),
+               'initial': dropmdups(get_rel_table_dihedral(initial_entries_rel_table))}
+
 ######################################################
 
 def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full'):
