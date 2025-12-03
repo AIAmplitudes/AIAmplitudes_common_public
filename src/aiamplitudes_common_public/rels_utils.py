@@ -317,7 +317,7 @@ def read_allrel_info(rels_to_generate, make_zero_rels=False):
 
     return rels, slots, to_gens, overlaps, relnames
 
-def get_coeff_from_word(word, symb):
+def get_coeff_from_word(word, symb, dummy='?'):
     '''
     Get the coeff of a given word in a symbol.
     ---------
@@ -328,6 +328,7 @@ def get_coeff_from_word(word, symb):
     OUTPUTS:
     coeff: float; if word does not exist in symb, then return 0.
     '''
+    if not symb: return dummy
     if word in symb:
         return symb[word]
     return 0

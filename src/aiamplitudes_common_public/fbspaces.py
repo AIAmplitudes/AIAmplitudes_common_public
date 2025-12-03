@@ -220,6 +220,9 @@ def expand_elem(key, opt="all", loaded=None):
     return Symb(exp_dict)
 
 def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
+    """"
+    Preload the f/b spaces and rels for a given weight combo, in order to process many terms at once
+    """""
     loaded=dict()
 
     if seam == 'front':
@@ -227,6 +230,7 @@ def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
             loaded["fspace"], loaded["fspace_flip"]= get_perm_fspace(fweight)
         elif fForm =='R':
             loaded["fspace"], loaded["fspace_flip"]= get_rest_fspace(fweight)
+            loaded["f_rels"] = get_frels(fweight, relpath)
         else:
             raise ValueError
     elif seam == 'back':
@@ -234,6 +238,7 @@ def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
             loaded["bspace"], loaded["bspace_flip"]= get_perm_bspace(bweight)
         elif bForm == 'R':
             loaded["bspace"], loaded["bspace_flip"]= get_rest_bspace(bweight)
+            loaded["b_rels"] = get_brels(bweight, relpath)
         else:
             raise ValueError
     elif seam == 'all':
@@ -241,6 +246,7 @@ def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
             loaded["fspace"], loaded["fspace_flip"]= get_perm_fspace(fweight)
         elif fForm == 'R':
             loaded["fspace"], loaded["fspace_flip"]= get_rest_fspace(fweight)
+            loaded["f_rels"] = get_frels(fweight, relpath)
         else:
             raise ValueError
 
@@ -248,15 +254,23 @@ def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
             loaded["bspace"], loaded["bspace_flip"]= get_perm_bspace(bweight)
         elif bForm == 'R':
             loaded["bspace"], loaded["bspace_flip"]= get_rest_bspace(bweight)
+            loaded["b_rels"] = get_brels(bweight, relpath)
         else:
             raise ValueError
     else:
         raise ValueError
     return loaded
 
-def get_compression(mySymb):
-    pattern=next(iter(mySymb))
+def get_elem_compression(pattern):
     parts = pattern.split('@')
+
+    if '_' in parts[0] and '_' in parts[-1]:
+        if len(parts) == 2: seamsize = 0
+        else: seamsize= len(parts[1])
+    elif '_' in parts[0]: seamsize=len(parts[1])
+    elif '_' in parts[1]: seamsize = len(parts[0])
+    else: seamsize = len(parts[0])
+
     first = parts[0].split('_')
     last = parts[-1].split('_')
     fweight, bweight = None, None
@@ -274,10 +288,14 @@ def get_compression(mySymb):
     elif 'R' in last[0]:
         bForm = 'R'
 
-    return fForm, fweight, bForm, bweight
+    return fForm, fweight, seamsize, bForm, bweight
+
+def get_compression(mySymb):
+    pattern=next(iter(mySymb))
+    return get_elem_compression(pattern)
 
 def expand_symb(mySymb, opt="all"):
-    fForm, fweight, bForm, bweight = get_compression(mySymb)
+    fForm, fweight, seamsize, bForm, bweight = get_compression(mySymb)
 
     if fForm ==None and bweight == None:
         print("already expanded!")
@@ -294,38 +312,92 @@ def expand_symb(mySymb, opt="all"):
         res += expand_elem(key, opt, loaded)
     return res
 
-def compress_elem(elem, fweight,bweight, seam,loaded=None):
-    exp_dict = {}
+def expand_rform_elem(key, opt="all", loaded=None):
+    #expand. If we've already loaded the fspace and bspace dict we need, use that
+    def proc_elem(myelem):
+        for entry in myelem.split('@'):
+            if entry.isalpha():
+                for i in entry:
+                    yield i
+            else:
+                yield entry
 
+    elem = [out for out in proc_elem(key)]
+    if opt == "front":
+        fweight, bweight = int(elem[0].split('_')[1]), None
+        myfspace=loaded["fspace"] if loaded else get_rest_fspace(fweight)[0]
+        expanded = [i for i in myfspace[elem[0]]] + elem[1:]
+    elif opt == "back":
+        fweight, bweight = None, int(elem[-1].split('_')[1])
+        mybspace = loaded["bspace"] if loaded else get_rest_bspace(bweight)[0]
+        expanded = elem[:-1] + [i for i in mybspace[elem[-1]]]
+    elif opt == "all":
+        fweight, bweight = int(elem[0].split('_')[1]), int(elem[-1].split('_')[1])
+        myfspace = loaded["fspace"] if loaded else get_rest_fspace(fweight)[0]
+        mybspace = loaded["bspace"] if loaded else get_rest_bspace(bweight)[0]
+
+        expanded = [i for i in myfspace[elem[0]]] + elem[1:-1] + [i for i in mybspace[elem[-1]]]
+    else:
+        raise ValueError
+    return expanded, (fweight, bweight)
+
+
+def compress_rform_elem(key, fweight,bweight, seam,loaded=None):
     if seam in {"front", "all"}:
         fseam = fweight
-        myfflip = loaded["fspace_flip"] if loaded else fspace_flip(fweight, "R")
+        myfflip = loaded["fspace_flip"] if loaded else get_rest_fspace(fweight)[1]
         myf = [myfflip[''.join(key[:fseam])]]
     if seam in {"back", "all"}:
         bseam = len(key) - bweight
-        mybflip = loaded["bspace_flip"] if loaded else bspace_flip(bweight, "R")
+        mybflip = loaded["bspace_flip"] if loaded else get_rest_bspace(bweight)[1]
         myb = [mybflip[''.join(key[bseam:])]]
 
-    if opt == "front":
-        fweight, bweight = int(elem[0].split('_')[1]), None
-        myfspace = loaded["fspace_flip"]
-        exp_dict = {f'{k}@{elem[1:]}': v for k, v in myfspace[elem[0]].items()}
-    elif opt == "back":
-        fweight, bweight = None, int(elem[-1].split('_')[1])
-        mybspace = loaded["bspace_flip"]
-        exp_dict = {f'{elem[:-1]}@{k}': v for k, v in mybspace[elem[-1]].items()}
-    elif opt == "all":
-        fweight, bweight = int(elem[0].split('_')[1]), int(elem[-1].split('_')[1])
-        myfspace = loaded["fspace_flip"]
-        mybspace = loaded["bspace_flip"]
-        exp_dict = {f'{k1}@{elem[1:-1]}@{k2}': v1 * v2 for k1, v1 in myfspace[elem[0]].items() for k2, v2 in
-                    mybspace[elem[-1]].items()}
+    if seam == "front":
+        l = myf + [''.join(key[fseam:])]
+    elif seam == "back":
+        l = [''.join(key[:bseam])] + myb
+    elif seam == "all":
+        l = myf + [''.join(key[fseam:bseam])] + myb
+    return '@'.join(l)
+
+def get_related(rel, seed, slot):
+    # given: a seam letter and indep (restrictive-form) bspace elem
+    # i.e. c@Fr_2_3
+    # AND: a nonlocal relation (integ, triple, etc.)
+    # get: the other non-indep terms it is related to by this relation
+    seedword = list(seed)
+    return {','.join(seedword[:slot] + [i for i in elem] + seedword[slot + len(elem):]): relcoef
+            for elem, relcoef in rel.items()}
+
+
+def get_as_indepsum(fullword, fweight=None, bweight=None, seam=None,
+                    loaded=None):
+    # Given a non-indep term, get the indeps it is related to by bspace/fspace rels
+    if seam == "back":
+        mybflip = loaded["bspace_flip"] if loaded else get_rest_bspace(bweight)[1]
+        mybrels = loaded["b_rels"] if loaded else get_brels(bweight,relpath)
+        body, belem = fullword[:-bweight], ''.join(fullword[-bweight:])
+        if belem in mybflip:
+            reldict = {compress_rform_elem(fullword, fweight, bweight, seam, loaded): 1}
+        elif belem in mybrels:
+            reldict = {compress_rform_elem(body + ''.join([i for i in k]), fweight, bweight, seam, loaded): v
+                       for k, v in mybrels[belem].items() if k}
+        else: reldict = {}
+
+    elif seam == "front":
+        myfflip = loaded["fspace_flip"] if loaded else get_rest_fspace(fweight)[1]
+        myfrels = loaded["f_rels"] if loaded else get_frels(fweight,relpath)
+        felem, body = ''.join(fullword[:fweight]), fullword[fweight:]
+        if felem in myfflip:
+            reldict = {compress_rform_elem(fullword, fweight, bweight, seam,loaded): 1}
+        elif felem in myfrels:
+            reldict = {compress_rform_elem(''.join([i for i in k]) + body, fweight, bweight, seam, loaded): v
+                       for k, v in myfrels[felem].items() if k}
+        else: reldict = {}
     else:
+        print("Bad seam!")
         raise ValueError
-    return exp_dict
-
-
-
+    return (reldict)
 
 
 

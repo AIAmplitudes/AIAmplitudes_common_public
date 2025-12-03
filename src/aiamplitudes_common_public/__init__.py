@@ -1,21 +1,31 @@
 from aiamplitudes_common_public.download_data import relpath
 from aiamplitudes_common_public.file_readers import convert,get_relpermdict
 from aiamplitudes_common_public.polynomial_utils import polynom_convert, get_runpolynomials, get_polynomialcoeffs
-from aiamplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace
+from aiamplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace, expand_symb
 from aiamplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace
 from aiamplitudes_common_public.rels_utils import alphabet,quad_prefix
 
 
 # fixed alphabet
-def Phi2Symb(L, type=None):
+def Phi2Symb(L, type=None, uncompress = True):
+    if not uncompress and not type:
+        if L == 7: type="quad"
+        elif L== 8: type = "oct"
+        else: type = "full"
+
     if not type or type == "full":
-        if L > 6:
-            print("cannot encode uncompressed!")
-            raise ValueError
-        if L==6:
-            symb = convert(f'{relpath}/EZ6_symb_new_norm', L)
-        else:
+        if L< 6:
             symb  = convert(f'{relpath}/EZ_symb_new_norm',L)
+        elif L==6:
+            symb = convert(f'{relpath}/EZ6_symb_new_norm', L)
+        elif L == 7 and uncompress:
+            print("Expanding! This will take a while and is not recommended!")
+            symb = expand_symb(convert(f'{relpath}/EZ7_symb_quad_new_norm', L, "quad"))
+        elif L == 8 and uncompress:
+            print("Expanding! This will take a while and is not recommended!")
+            symb = expand_symb(convert(f'{relpath}/EZ8_symb_oct_new_norm', L, "oct"))
+        else:
+            raise ValueError
         return symb
     elif type == "quad":
         if L < 2:
@@ -37,6 +47,18 @@ def Phi2Symb(L, type=None):
         else: raise ValueError
         return symb
     else: return
+
+
+
+
+
+
+
+
+
+
+
+
 
 def Phi3Symb(L):
     if L==6:
