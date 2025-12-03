@@ -380,7 +380,7 @@ def get_as_indepsum(fullword, fweight=None, bweight=None, seam=None,
         if belem in mybflip:
             reldict = {compress_rform_elem(fullword, fweight, bweight, seam, loaded): 1}
         elif belem in mybrels:
-            reldict = {compress_rform_elem(body + [i for i in k], fweight, bweight, seam, loaded): v
+            reldict = {compress_rform_elem(body + ''.join([i for i in k]), fweight, bweight, seam, loaded): v
                        for k, v in mybrels[belem].items() if k}
         else: reldict = {}
 
@@ -391,7 +391,7 @@ def get_as_indepsum(fullword, fweight=None, bweight=None, seam=None,
         if felem in myfflip:
             reldict = {compress_rform_elem(fullword, fweight, bweight, seam,loaded): 1}
         elif felem in myfrels:
-            reldict = {compress_rform_elem([i for i in k] + body, fweight, bweight, seam, loaded): v
+            reldict = {compress_rform_elem(''.join([i for i in k]) + body, fweight, bweight, seam, loaded): v
                        for k, v in myfrels[felem].items() if k}
         else: reldict = {}
     else:
