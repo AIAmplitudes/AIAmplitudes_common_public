@@ -8,10 +8,10 @@ def convert(filename, loop=None, reptype=None):
     if reptype in {"oct","quad"}:
         if reptype== "oct":
             base = readSymb(filename, 'Esymboct', loop)[:-2]
-            prefix = [f'BR_8_{i}' for i in range(93)]
+            prefix = [f'OCT_{i}' for i in range(93)]
         elif reptype == "quad":
             base = readSymb(filename, 'Esymbquad', loop)[:-2]
-            prefix = [f'BR_4_{i}' for i in range(8)]
+            prefix = [f'QUAD_{i}' for i in range(8)]
         base = re.sub(' ', '', base)
         t = re.split(":=\[|\),|\)\]", base)[1:]
         if len(t[-1]) == 0: t = t[:-1]

@@ -48,18 +48,6 @@ def Phi2Symb(L, type=None, uncompress = True):
         return symb
     else: return
 
-
-
-
-
-
-
-
-
-
-
-
-
 def Phi3Symb(L):
     if L==6:
         symb = convert(f'{relpath}/EE33_6_symb_new_norm', L)

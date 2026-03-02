@@ -12,8 +12,6 @@ F_number= [1, 3, 9, 21, 48, 108, 246, 555, 1251, None ]
 NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, None ] #<-num_bspace_rels
 NF_rels= [0, 3, 9, 33, 78, 180, 402, 921, 2079, None] #<-num_fspace_rels
 
-
-
 bspacenames = {1: 'singleindep3',
                2: 'doubleindep6',
                3: 'tripleindep12',
