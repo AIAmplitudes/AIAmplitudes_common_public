@@ -4,7 +4,8 @@ from aiamplitudes_common_public.polynomial_utils import polynom_convert, get_run
 from aiamplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace, expand_symb
 from aiamplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace
 from aiamplitudes_common_public.rels_utils import alphabet,quad_prefix
-from aiamplitudes_common_public.uncompressor import UnQuad, UnQuadLoop
+from aiamplitudes_common_public.uncompressor import UnQuad, UnQuadLoop, UnQuadTerm
+from aiamplitudes_common_public.uncompressor import UnOct, UnOctLoop, UnOctTerm
 
 
 # fixed alphabet
@@ -22,9 +23,6 @@ def Phi2Symb(L, type=None, uncompress = True):
         elif L == 7 and uncompress:
             print("Expanding! This will take a while and is not recommended!")
             symb = expand_symb(convert(f'{relpath}/EZ7_symb_quad_new_norm', L, "quad"))
-        elif L == 8 and uncompress:
-            print("Expanding! This will take a while and is not recommended!")
-            symb = expand_symb(convert(f'{relpath}/EZ8_symb_oct_new_norm', L, "oct"))
         else:
             raise ValueError
         return symb

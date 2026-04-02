@@ -1,10 +1,18 @@
 """
-Term-wise decompression of quad-compressed symbol data.
+Term-wise decompression of compressed symbol data.
 
-Unlike expand_symb() (which does algebraic basis expansion via front/back space vectors),
-UnQuad works prefix-by-prefix, using explicit physics relations (final-entry,
-triple-adjacency, integrability) to reconstruct all 4-letter endings from the 8
-stored quad basis entries per prefix.
+UnQuad maps 24 quad-basis indep values to all 4-letter suffix values using a
+matrix derived (lazily, on first use) from the eq4/eq3/eq2 physics relations.
+The matrix depends on the last letter of the prefix (6 variants, cached).
+
+UnOct maps 279 oct-basis indep values (93 bases × 3 rotations) to all
+8-letter suffix values using precomputed data (data/oct_matrices.npz).
+Two-stage exact integer arithmetic:
+  1. C^{-T} converts oct-lookup values to the restrictive B-space basis
+  2. Sparse B matrix maps basis values to suffix values (per-column exact division)
+
+Single-term lookups (UnQuadTerm, UnOctTerm) compute a single suffix value
+via dot products instead of decompressing all suffixes.
 """
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -138,33 +146,35 @@ def get24(key):
     return res, res2
 
 
-def UnQuad(prefix, data=None):
-    """Decompress all entries with a given (2L-4)-length prefix.
+# Valid 2-letter prefixes for eq2 relations
+eq2_prefixes = [
+    'aa', 'ab', 'ac', 'ae', 'af',
+    'ba', 'bb', 'bc', 'bd', 'bf',
+    'ca', 'cb', 'cc', 'cd', 'ce',
+    'db', 'dc', 'dd',
+    'ea', 'ec', 'ee',
+    'fa', 'fb', 'ff',
+]
 
-    Args:
-        prefix: The symbol prefix of length 2L-4.
-        data: Pre-loaded quad data dict (from Phi2Symb(loop, "quad")).
-              If None, loads automatically.
+# 24 indep suffixes in get24 order: for each quad basis i, the canonical
+# suffix followed by its two dihedral copies
+_indep_order = []
+for _j in range(8):
+    _indep_order.append(quad_bases[_j])
+    _indep_order.append(quad_cyclic[2 * _j])
+    _indep_order.append(quad_cyclic[2 * _j + 1])
 
-    Returns:
-        Dict mapping full symbol keys to integer coefficients.
+# Minimal valid prefixes for each possible last letter (for matrix derivation)
+_min_prefix = {'a': 'aa', 'b': 'ab', 'c': 'ac', 'd': 'bd', 'e': 'ae', 'f': 'af'}
+
+_quad_matrix_cache = {}
+
+def _apply_relations_exact(prefix, res):
+    """Apply eq4, eq3, eq2 relations.
+
+    Used for matrix derivation where indep values are 0/1 and intermediate
+    values can be half-integers (due to ±0.5 coefficients in eq4).
     """
-    from aiamplitudes_common_public import Phi2Symb
-
-    res = {}
-    loop = len(prefix) // 2 + 2
-    if data is None:
-        data = Phi2Symb(loop, "quad")
-
-    # Read the 24 base keys associated to this prefix
-    linquads, orig = get24(prefix + "dddd")
-    for i, d in enumerate(linquads):
-        k = d[:-4] + quad_codes[d[-4:]]
-        if k in data:
-            v = data[k]
-            res[orig[i]] = v
-
-    # Apply eq4: 4-letter suffix relations
     for e in eq4:
         key = prefix + e[0]
         val = 0
@@ -172,12 +182,11 @@ def UnQuad(prefix, data=None):
             k = prefix + e[1][2 * j + 1]
             if k in res:
                 val += e[1][2 * j] * res[k]
-        if round(val) != 0:
-            res[key] = round(val)
+        if val != 0:
+            res[key] = val
 
-    # Apply eq3: 3-letter suffix relations (with each letter prepended)
     for e in eq3:
-        for l in ['a', 'b', 'c', 'd', 'e', 'f']:
+        for l in 'abcdef':
             key = prefix + l + e[0]
             if Admissible(key):
                 val = 0
@@ -185,19 +194,9 @@ def UnQuad(prefix, data=None):
                     k = prefix + l + e[1][2 * j + 1]
                     if k in res:
                         val += e[1][2 * j] * res[k]
-                if round(val) != 0:
-                    res[key] = round(val)
+                if val != 0:
+                    res[key] = val
 
-    # Apply eq2: 2-letter suffix relations (with each valid 2-letter pair prepended)
-    # Bug fix: original notebook had 'ab''ac' (string concat) instead of 'ab','ac'
-    eq2_prefixes = [
-        'aa', 'ab', 'ac', 'ae', 'af',
-        'ba', 'bb', 'bc', 'bd', 'bf',
-        'ca', 'cb', 'cc', 'cd', 'ce',
-        'db', 'dc', 'dd',
-        'ea', 'ec', 'ee',
-        'fa', 'fb', 'ff',
-    ]
     for e in eq2:
         for l in eq2_prefixes:
             key = prefix + l + e[0]
@@ -207,8 +206,85 @@ def UnQuad(prefix, data=None):
                     k = prefix + l + e[1][2 * j + 1]
                     if k in res:
                         val += e[1][2 * j] * res[k]
-                if round(val) != 0:
-                    res[key] = round(val)
+                if val != 0:
+                    res[key] = val
+
+
+def _get_quad_matrix(last_letter):
+    """Return (B, suffixes, sf_index) for the given last prefix letter.
+
+    B is (24, N_suffixes) such that indep_values @ B gives all suffix values.
+    Cached after first computation.
+    """
+    if last_letter in _quad_matrix_cache:
+        return _quad_matrix_cache[last_letter]
+
+    import numpy as np
+
+    prefix = _min_prefix[last_letter]
+    plen = len(prefix)
+
+    # Probe with each unit vector to build the matrix
+    all_suffixes = set()
+    columns = []
+    for sf in _indep_order:
+        res = {prefix + sf: 1}
+        _apply_relations_exact(prefix, res)
+        col = {k[plen:]: v for k, v in res.items()}
+        columns.append(col)
+        all_suffixes.update(col.keys())
+
+    suffixes = sorted(all_suffixes)
+    sf_index = {sf: j for j, sf in enumerate(suffixes)}
+
+    B = np.zeros((24, len(suffixes)))
+    for i, col in enumerate(columns):
+        for sf, v in col.items():
+            B[i, sf_index[sf]] = v
+
+    _quad_matrix_cache[last_letter] = (B, suffixes, sf_index)
+    return B, suffixes, sf_index
+
+
+def UnQuad(prefix, data=None):
+    """Decompress all entries with a given (2L-4)-length prefix.
+
+    Uses a precomputed matrix (derived from the eq4/eq3/eq2 relations)
+    to map the 24 quad-basis indep values to all suffix values in one
+    matrix multiply.
+
+    Args:
+        prefix: The symbol prefix of length 2L-4.
+        data: Pre-loaded quad data dict (from Phi2Symb(loop, "quad")).
+              If None, loads automatically.
+
+    Returns:
+        Dict mapping full symbol keys to integer coefficients.
+    """
+    import numpy as np
+    from aiamplitudes_common_public import Phi2Symb
+
+    loop = len(prefix) // 2 + 2
+    if data is None:
+        data = Phi2Symb(loop, "quad")
+
+    # Read the 24 indep values via get24
+    linquads, orig = get24(prefix + "dddd")
+    indep_values = np.zeros(24)
+    for i, d in enumerate(linquads):
+        k = d[:-4] + quad_codes[d[-4:]]
+        if k in data:
+            indep_values[i] = data[k]
+
+    # Matrix multiply: indeps -> all suffixes
+    B, suffixes, _ = _get_quad_matrix(prefix[-1])
+    vals = indep_values @ B
+
+    res = {}
+    for j, sf in enumerate(suffixes):
+        v = round(vals[j])
+        if v != 0:
+            res[prefix + sf] = v
     return res
 
 
@@ -240,3 +316,321 @@ def UnQuadLoop(loop):
             print("aie", t)
         res.update(UnQuad(t, data=data))
     return res
+
+# ── Single-term lookup ──────────────────────────────────────────────────────
+
+def UnQuadTerm(key, data=None):
+    """Look up a single symbol term from quad-compressed data.
+
+    Instead of decompressing all suffixes for the prefix, computes just
+    the dot product of the 24 indep values with the relevant column of the
+    quad basis matrix.
+
+    Args:
+        key: Full symbol key (length 2L).
+        data: Pre-loaded quad data dict. If None, loads automatically.
+
+    Returns:
+        Integer coefficient of this term (0 if absent).
+    """
+    import numpy as np
+    from aiamplitudes_common_public import Phi2Symb
+
+    loop = len(key) // 2
+    prefix = key[:-4]
+    suffix = key[-4:]
+
+    if data is None:
+        data = Phi2Symb(loop, "quad")
+
+    B, suffixes, sf_index = _get_quad_matrix(prefix[-1])
+    if suffix not in sf_index:
+        return 0
+    j = sf_index[suffix]
+
+    # Read the 24 indep values
+    linquads, _ = get24(prefix + "dddd")
+    indep_values = np.zeros(24)
+    for i, d in enumerate(linquads):
+        k = d[:-4] + quad_codes[d[-4:]]
+        if k in data:
+            indep_values[i] = data[k]
+
+    return round(indep_values @ B[:, j])
+
+
+# ── Oct (octuple) decompression ────────────────────────────────────────────
+
+oct_bases = [
+    "aaaaaaaf", "aaaaafaf", "aaaafaaf", "aaafaaaf", "aaafaaff", "aaafafaf",
+    "aaeaffff", "aaeeaaaf", "aaeeaaff", "aaeeafaf", "aafaaaaf", "aafaafaf",
+    "aafafaaf", "aafaffff", "aafbbdbd", "aafbdddd", "aafbffff", "aaffbdbd",
+    "aaffffff", "aeaaaaaf", "aeaaafaf", "aeafaaaf", "aeafafaf", "aeeeaaaf",
+    "aeeeaaff", "aeeecece", "afaaaaaf", "afaaafaf", "afaafaaf", "affaaaaf",
+    "affaafaf", "affafaaf", "affbbdbd", "affbdbbd", "afffaaaf", "afffbdbd",
+    "bafbffff", "bbaaffff", "bbaeaaaf", "bbbabdbd", "bbbaeeee", "bbbbcece",
+    "bbbddbdd", "bbbfbbbd", "bbbfbbdd", "bbbfbdbd", "bbcbdddd", "bbccecce",
+    "bbddbbbd", "bbfaafaf", "bbfbbdbd", "bbfbdbbd", "bbfbffff", "bbffffff",
+    "bcdbdddd", "bcddbbdd", "bceeeeee", "bdbabdbd", "bdbaeeee", "bdbddbdd",
+    "bddbdddd", "bddddddd", "dbbbbbbd", "dbbbbdbd", "dbbbdbbd", "dbbdbbdd",
+    "dbbddbdd", "dbbfbbbd", "dbbfbdbd", "dbccecce", "dbcceeee", "dbdbdddd",
+    "dbdcdddd", "dbdddddd", "dbfaffff", "dbfbbbbd", "dbfbbdbd", "dbfbdbbd",
+    "dcaeafaf", "dcaeeeee", "dcafafaf", "dcbaeeee", "dccceeee", "dccdccee",
+    "dccecece", "dcdcdddd", "dcddcece", "dcecdddd", "dceeccce", "dceeccee",
+    "dceeeeee", "ddbbbdbd", "dddddddd",
+]
+
+oct_codes = {oct_bases[i]: f"@OCT_{i}" for i in range(len(oct_bases))}
+
+# Cyclic images of oct_bases: oct_cyclic[2*i] = rot2(base_i),
+# oct_cyclic[2*i+1] = rot1(base_i).  This ordering matches quad_cyclic
+# so that get279 can follow the same pattern as get24: applying rot1 to
+# (prefix + cyclic[2*i]) recovers base_i in the last 8 chars.
+oct_cyclic = []
+for _ob in oct_bases:
+    oct_cyclic.append(Subst(_ob, "bcaefd"))   # rot2
+    oct_cyclic.append(Subst(_ob, "cabfde"))   # rot1
+
+# ── Oct lookup and decompression ────────────────────────────────────────
+
+
+def get279(prefix):
+    """Return the 279 oct-basis lookup keys for a given prefix.
+
+    For each of 93 oct bases, returns the key to look up in the oct data
+    file for the identity rotation and the two non-identity rotations
+    (which access the rotated prefix's data).
+
+    Args:
+        prefix: The symbol prefix of length 2L-8.
+
+    Returns:
+        (linkeys, orig) where linkeys[i] is the key to look up in the oct
+        data (with @OCT_j suffix), and orig[i] is the actual full symbol key.
+    """
+    rotations = ["cabfde", "bcaefd"]
+    linkeys = []
+    orig = []
+    for i in range(len(oct_bases)):
+        # Identity: look up this prefix's oct data for base i
+        linkeys.append(prefix + oct_codes[oct_bases[i]])
+        orig.append(prefix + oct_bases[i])
+        # Rotation 1: rotate(prefix + cyclic_2i) -> look up rotated prefix's data
+        rot1_word = Subst(prefix + oct_cyclic[2 * i], rotations[0])
+        linkeys.append(rot1_word[:-8] + oct_codes[rot1_word[-8:]])
+        orig.append(prefix + oct_cyclic[2 * i])
+        # Rotation 2: rotate(prefix + cyclic_2i+1) -> look up rotated prefix's data
+        rot2_word = Subst(prefix + oct_cyclic[2 * i + 1], rotations[1])
+        linkeys.append(rot2_word[:-8] + oct_codes[rot2_word[-8:]])
+        orig.append(prefix + oct_cyclic[2 * i + 1])
+    return linkeys, orig
+
+
+_oct_matrix_cache = {}
+
+
+def _load_oct_matrices():
+    """Load precomputed oct decompression data from data/oct_matrices.npz.
+
+    Two-stage decompression:
+      1. rest_vals = C_inv_T @ oct_lookup  (279→279, exact rational→integer)
+      2. suffix_values = rest_vals @ B_sparse  (per-column exact division)
+    """
+    if _oct_matrix_cache:
+        return
+    import numpy as np
+    import os
+    datadir = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
+    path = os.path.join(datadir, 'oct_matrices.npz')
+    mdata = np.load(path)
+
+    # C_inv_T: (279×279) stored as per-row scaled integers
+    _oct_matrix_cache['C_inv_T_num'] = mdata['C_inv_T_num']      # (279,279) int64
+    _oct_matrix_cache['C_inv_T_denoms'] = mdata['C_inv_T_denoms']  # (279,) int64
+
+    for ll in 'abcdef':
+        suffixes = list(mdata[f'suffixes_{ll}'])
+        sf_index = {sf: j for j, sf in enumerate(suffixes)}
+        _oct_matrix_cache[ll] = {
+            'suffixes': suffixes,
+            'sf_index': sf_index,
+            'rows': mdata[f'rows_{ll}'],        # int32, CSC row indices
+            'nums': mdata[f'nums_{ll}'],        # int64, scaled numerators
+            'col_ptrs': mdata[f'col_ptrs_{ll}'],  # int32, column pointers
+            'col_lcms': mdata[f'col_lcms_{ll}'],  # int64, per-column denominators
+        }
+
+
+def _oct_step1(oct_lookup):
+    """Step 1: Convert oct_lookup (279 ints) to rest_vals (279 ints) via C_inv_T.
+
+    Uses exact integer arithmetic with per-row denominators.
+    """
+    from math import gcd
+    _load_oct_matrices()
+    C_num = _oct_matrix_cache['C_inv_T_num']
+    C_den = _oct_matrix_cache['C_inv_T_denoms']
+    n = 279
+    rest_vals = [0] * n
+    for i in range(n):
+        d = int(C_den[i])
+        total = 0
+        for j in range(n):
+            v = int(oct_lookup[j])
+            if v != 0:
+                total += v * int(C_num[i, j])
+        assert total % d == 0, f"Non-integer rest_val at index {i}: {total}/{d}"
+        rest_vals[i] = total // d
+    return rest_vals
+
+
+def _oct_step2(prefix, rest_vals):
+    """Step 2: Multiply rest_vals (279 ints) by sparse B to get suffix values.
+
+    Uses per-column common denominators for exact division.
+    """
+    _load_oct_matrices()
+    m = _oct_matrix_cache[prefix[-1]]
+    suffixes = m['suffixes']
+    rows = m['rows']
+    nums = m['nums']
+    col_ptrs = m['col_ptrs']
+    col_lcms = m['col_lcms']
+    n_suf = len(suffixes)
+
+    res = {}
+    for j in range(n_suf):
+        start = int(col_ptrs[j])
+        end = int(col_ptrs[j + 1])
+        if start == end:
+            continue
+        col_lcm = int(col_lcms[j])
+        total = 0
+        for idx in range(start, end):
+            row = int(rows[idx])
+            num = int(nums[idx])
+            total += rest_vals[row] * num
+        if col_lcm != 1:
+            assert total % col_lcm == 0, \
+                f"Non-integer at suffix {suffixes[j]}: {total}/{col_lcm}"
+            total //= col_lcm
+        if total != 0:
+            res[prefix + suffixes[j]] = total
+    return res
+
+
+def UnOct(prefix, data=None):
+    """Decompress all entries with a given (2L-8)-length prefix.
+
+    Two-stage exact decompression:
+      1. Convert oct-lookup values to restrictive-basis values via C^{-T}
+      2. Multiply by sparse B matrix with per-column exact division
+
+    Args:
+        prefix: The symbol prefix of length 2L-8.
+        data: Pre-loaded oct data dict (from Phi2Symb(loop, "oct")).
+              If None, loads automatically.
+
+    Returns:
+        Dict mapping full symbol keys to integer coefficients.
+    """
+    from aiamplitudes_common_public import Phi2Symb
+
+    loop = len(prefix) // 2 + 4
+    if data is None:
+        data = Phi2Symb(loop, "oct")
+
+    # Read the 279 oct-lookup values via get279
+    linkeys, _ = get279(prefix)
+    oct_lookup = [0] * 279
+    for i, k in enumerate(linkeys):
+        if k in data:
+            oct_lookup[i] = data[k]
+
+    # Step 1: oct_lookup -> rest_vals
+    rest_vals = _oct_step1(oct_lookup)
+
+    # Step 2: rest_vals -> suffix values
+    return _oct_step2(prefix, rest_vals)
+
+
+def UnOctLoop(loop):
+    """Decompress an entire loop order from oct format.
+
+    Loads the oct data once, collects all prefixes and their dihedral
+    equivalents, then calls UnOct on each.
+
+    Args:
+        loop: Loop number (integer).
+
+    Returns:
+        Dict mapping all full symbol keys to integer coefficients.
+    """
+    from aiamplitudes_common_public import Phi2Symb
+
+    res = {}
+    data = Phi2Symb(loop, "oct")
+    todo = set()
+    for d in data:
+        prefix = d[:d.index('@')]
+        todo.update(DihedralEq(prefix))
+    for t in todo:
+        if len(t) != 2 * loop - 8:
+            print("aie", t)
+        res.update(UnOct(t, data=data))
+    return res
+
+
+def UnOctTerm(key, data=None):
+    """Look up a single symbol term from oct-compressed data.
+
+    Uses the same two-stage exact decompression as UnOct but only
+    computes the single requested suffix.
+
+    Args:
+        key: Full symbol key (length 2L).
+        data: Pre-loaded oct data dict. If None, loads automatically.
+
+    Returns:
+        Integer coefficient of this term (0 if absent).
+    """
+    from aiamplitudes_common_public import Phi2Symb
+
+    loop = len(key) // 2
+    prefix = key[:-8]
+    suffix = key[-8:]
+
+    if data is None:
+        data = Phi2Symb(loop, "oct")
+
+    _load_oct_matrices()
+    m = _oct_matrix_cache[prefix[-1]]
+    if suffix not in m['sf_index']:
+        return 0
+    j = m['sf_index'][suffix]
+
+    # Read oct-lookup values
+    linkeys, _ = get279(prefix)
+    oct_lookup = [0] * 279
+    for i, k in enumerate(linkeys):
+        if k in data:
+            oct_lookup[i] = data[k]
+
+    # Step 1: oct_lookup -> rest_vals
+    rest_vals = _oct_step1(oct_lookup)
+
+    # Step 2: single column dot product
+    rows = m['rows']
+    nums = m['nums']
+    col_ptrs = m['col_ptrs']
+    start = int(col_ptrs[j])
+    end = int(col_ptrs[j + 1])
+    col_lcm = int(m['col_lcms'][j])
+
+    total = 0
+    for idx in range(start, end):
+        total += rest_vals[int(rows[idx])] * int(nums[idx])
+    if col_lcm != 1:
+        assert total % col_lcm == 0
+        total //= col_lcm
+    return total

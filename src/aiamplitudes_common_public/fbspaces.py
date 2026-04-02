@@ -132,6 +132,9 @@ def getFrel_eqs(f, w):
 def rel_to_dict(relstring, bspace=True):
     # read an F/Bspace rel as a nested dict. if the rel is
     # E(abc)=-2*E(def)+4*E(bcd), return {abc: {def:-2, bcd:4}}
+    if not relstring or relstring.strip() in ('', 'NULL'):
+        return {None: None}
+
     def expandcoef(c): return Fraction(c + '1') if (len(c) == 1 and not c.isnumeric()) else Fraction(c)
 
     if bspace:

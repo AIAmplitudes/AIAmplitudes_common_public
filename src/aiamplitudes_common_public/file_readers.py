@@ -53,6 +53,7 @@ def readFile(f, prefix):
             res = ''
             reading_form = True
         if line.isspace(): break
+        if reading_form and line.lstrip().startswith('#'): continue
         res += line[:-2] if line[-2] == '\\' else line[:-1]
         if line[-2] in [":", ";"]:
             break
