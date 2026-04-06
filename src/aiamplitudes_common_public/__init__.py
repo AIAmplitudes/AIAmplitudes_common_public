@@ -6,6 +6,7 @@ from aiamplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace
 from aiamplitudes_common_public.rels_utils import alphabet,quad_prefix
 from aiamplitudes_common_public.uncompressor import UnQuad, UnQuadLoop, UnQuadTerm
 from aiamplitudes_common_public.uncompressor import UnOct, UnOctLoop, UnOctTerm
+from aiamplitudes_common_public.lazy_symbol import LazySymbol
 
 
 # fixed alphabet

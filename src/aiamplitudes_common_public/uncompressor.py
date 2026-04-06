@@ -20,7 +20,7 @@ via dot products instead of decompressing all suffixes.
 quad_bases = ["dddd", "bbbd", "bdbd", "bbdd", "dbdd", "fbdd", "dbbd", "cddd"]
 
 # Map each basis ending to the repo's @QUAD_i token format (0-indexed)
-quad_codes = {quad_bases[i]: f"@QUAD_{i}" for i in range(len(quad_bases))}
+quad_codes = {b: f"@QUAD_{i}" for i, b in enumerate(quad_bases)}
 
 # 16 dihedral equivalents of the quad bases
 quad_cyclic = [
@@ -158,11 +158,8 @@ eq2_prefixes = [
 
 # 24 indep suffixes in get24 order: for each quad basis i, the canonical
 # suffix followed by its two dihedral copies
-_indep_order = []
-for _j in range(8):
-    _indep_order.append(quad_bases[_j])
-    _indep_order.append(quad_cyclic[2 * _j])
-    _indep_order.append(quad_cyclic[2 * _j + 1])
+_indep_order = [s for j in range(8)
+                for s in (quad_bases[j], quad_cyclic[2*j], quad_cyclic[2*j+1])]
 
 # Minimal valid prefixes for each possible last letter (for matrix derivation)
 _min_prefix = {'a': 'aa', 'b': 'ab', 'c': 'ac', 'd': 'bd', 'e': 'ae', 'f': 'af'}
@@ -380,16 +377,14 @@ oct_bases = [
     "dceeeeee", "ddbbbdbd", "dddddddd",
 ]
 
-oct_codes = {oct_bases[i]: f"@OCT_{i}" for i in range(len(oct_bases))}
+oct_codes = {b: f"@OCT_{i}" for i, b in enumerate(oct_bases)}
 
 # Cyclic images of oct_bases: oct_cyclic[2*i] = rot2(base_i),
 # oct_cyclic[2*i+1] = rot1(base_i).  This ordering matches quad_cyclic
 # so that get279 can follow the same pattern as get24: applying rot1 to
 # (prefix + cyclic[2*i]) recovers base_i in the last 8 chars.
-oct_cyclic = []
-for _ob in oct_bases:
-    oct_cyclic.append(Subst(_ob, "bcaefd"))   # rot2
-    oct_cyclic.append(Subst(_ob, "cabfde"))   # rot1
+oct_cyclic = [s for ob in oct_bases
+              for s in (Subst(ob, "bcaefd"), Subst(ob, "cabfde"))]  # rot2, rot1
 
 # ── Oct lookup and decompression ────────────────────────────────────────
 
@@ -466,22 +461,14 @@ def _oct_step1(oct_lookup):
 
     Uses exact integer arithmetic with per-row denominators.
     """
-    from math import gcd
+    import numpy as np
     _load_oct_matrices()
     C_num = _oct_matrix_cache['C_inv_T_num']
     C_den = _oct_matrix_cache['C_inv_T_denoms']
-    n = 279
-    rest_vals = [0] * n
-    for i in range(n):
-        d = int(C_den[i])
-        total = 0
-        for j in range(n):
-            v = int(oct_lookup[j])
-            if v != 0:
-                total += v * int(C_num[i, j])
-        assert total % d == 0, f"Non-integer rest_val at index {i}: {total}/{d}"
-        rest_vals[i] = total // d
-    return rest_vals
+    oct_arr = np.asarray(oct_lookup, dtype=np.int64)
+    raw = C_num @ oct_arr
+    assert np.all(raw % C_den == 0), "Non-integer rest_vals in C_inv_T step"
+    return (raw // C_den).tolist()
 
 
 def _oct_step2(prefix, rest_vals):
@@ -489,6 +476,7 @@ def _oct_step2(prefix, rest_vals):
 
     Uses per-column common denominators for exact division.
     """
+    import numpy as np
     _load_oct_matrices()
     m = _oct_matrix_cache[prefix[-1]]
     suffixes = m['suffixes']
@@ -497,19 +485,15 @@ def _oct_step2(prefix, rest_vals):
     col_ptrs = m['col_ptrs']
     col_lcms = m['col_lcms']
     n_suf = len(suffixes)
+    rest_arr = np.asarray(rest_vals, dtype=np.int64)
 
     res = {}
     for j in range(n_suf):
-        start = int(col_ptrs[j])
-        end = int(col_ptrs[j + 1])
+        start, end = int(col_ptrs[j]), int(col_ptrs[j + 1])
         if start == end:
             continue
+        total = int(np.dot(rest_arr[rows[start:end]], nums[start:end]))
         col_lcm = int(col_lcms[j])
-        total = 0
-        for idx in range(start, end):
-            row = int(rows[idx])
-            num = int(nums[idx])
-            total += rest_vals[row] * num
         if col_lcm != 1:
             assert total % col_lcm == 0, \
                 f"Non-integer at suffix {suffixes[j]}: {total}/{col_lcm}"
@@ -529,8 +513,6 @@ def UnOct(prefix, data=None):
     Args:
         prefix: The symbol prefix of length 2L-8.
         data: Pre-loaded oct data dict (from Phi2Symb(loop, "oct")).
-              If None, loads automatically.
-
     Returns:
         Dict mapping full symbol keys to integer coefficients.
     """
