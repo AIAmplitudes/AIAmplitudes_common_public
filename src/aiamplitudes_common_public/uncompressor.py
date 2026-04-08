@@ -460,15 +460,17 @@ def _oct_step1(oct_lookup):
     """Step 1: Convert oct_lookup (279 ints) to rest_vals (279 ints) via C_inv_T.
 
     Uses exact integer arithmetic with per-row denominators.
+    Uses object dtype to avoid int64 overflow at higher loops.
     """
     import numpy as np
     _load_oct_matrices()
-    C_num = _oct_matrix_cache['C_inv_T_num']
-    C_den = _oct_matrix_cache['C_inv_T_denoms']
-    oct_arr = np.asarray(oct_lookup, dtype=np.int64)
+    C_num = _oct_matrix_cache['C_inv_T_num'].astype(object)
+    C_den = _oct_matrix_cache['C_inv_T_denoms'].astype(object)
+    oct_arr = np.asarray(oct_lookup, dtype=object)
     raw = C_num @ oct_arr
-    assert np.all(raw % C_den == 0), "Non-integer rest_vals in C_inv_T step"
-    return (raw // C_den).tolist()
+    assert all(raw[i] % C_den[i] == 0 for i in range(len(raw))), \
+        "Non-integer rest_vals in C_inv_T step"
+    return [raw[i] // C_den[i] for i in range(len(raw))]
 
 
 def _oct_step2(prefix, rest_vals):
@@ -485,14 +487,13 @@ def _oct_step2(prefix, rest_vals):
     col_ptrs = m['col_ptrs']
     col_lcms = m['col_lcms']
     n_suf = len(suffixes)
-    rest_arr = np.asarray(rest_vals, dtype=np.int64)
-
     res = {}
     for j in range(n_suf):
         start, end = int(col_ptrs[j]), int(col_ptrs[j + 1])
         if start == end:
             continue
-        total = int(np.dot(rest_arr[rows[start:end]], nums[start:end]))
+        total = sum(int(rest_vals[int(rows[idx])]) * int(nums[idx])
+                    for idx in range(start, end))
         col_lcm = int(col_lcms[j])
         if col_lcm != 1:
             assert total % col_lcm == 0, \
