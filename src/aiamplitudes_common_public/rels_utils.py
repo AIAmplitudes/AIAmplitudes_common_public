@@ -422,6 +422,7 @@ def get_dihedral_pair(key, goodkeys, symb, type="cycle"):
 def generate_random_word(word_length, format='full', seed=0):
     '''
     Generate a random word with a specific length.
+    Does not account for Steinmann adjacency relations, so is likely to give a zero-coef word.
     ---------
     INPUTS:
     word_length: int; number of letters in the generated word.
