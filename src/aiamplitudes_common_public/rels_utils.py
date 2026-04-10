@@ -1,6 +1,24 @@
-# script to generate json files of a user-defined set of linear relations matched with a given symbol
-# script to evaluate various linear relations satisfied by the symbols of the 3-point form factor of phi2
+"""
+Relation lookup tables and utilities for scattering amplitude symbols.
 
+Defines all homogeneous linear relations that valid Phi2 symbols must satisfy:
+  - First-entry conditions: first letter cannot be d, e, or f
+  - Double-adjacency (Steinmann): forbidden adjacent pairs {ad, be, cf, de, df, ef}
+  - Triple-adjacency: aab + abb + acb = 0 (plus dihedral images)
+  - Integrability: 3 independent equations from the pair table
+  - Final-entry conditions: 29 relations on the last 1-4 letters
+  - Initial-entry conditions: 14 relations on the first 1-3 letters
+
+Each relation table is stored as a list of dicts mapping letter substrings
+to integer/fractional coefficients. Dihedral images are generated via the
+6-element dihedral group acting on the alphabet {a,b,c,d,e,f}.
+
+Also provides:
+  - Instance generation: finding/sampling relation instances within a symbol
+  - Dihedral image computation: rotating/flipping words and relation tables
+  - Relation verification: checking if a relation sums to zero in a symbol
+  - Auxiliary parsing: read_rel_info, read_allrel_info for config-driven generation
+"""
 
 import numpy as np
 import time

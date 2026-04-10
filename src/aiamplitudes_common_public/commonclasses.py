@@ -1,13 +1,32 @@
+"""
+Core data structures for symbol manipulation.
+
+Symb: dict subclass with arithmetic operator overloads (+, -, *, /, &, |)
+for elementwise operations on symbol coefficients. Supports in-place
+add_small/sub_small for incremental updates without creating new dicts.
+
+sumlist: list wrapper with elementwise addition/subtraction/multiplication,
+used for lists of Symb objects (e.g. output of BCop2ABIG).
+
+fastRandomSampler: O(1) random sampling + O(1) lookup data structure.
+Wraps a dict or set with a bidirectional key<->int mapping so that random
+key selection and key removal are both constant-time. Critical for efficient
+training data generation from symbols with millions of terms.
+"""
+
 import copy
 import random
 import argparse
 from fractions import Fraction
 
-#some classes to hold the data in different formats.
-#symb is an overload of dict with some elementwise operators on values,
-#sumlist is an overload of list with elementwise sum and multiplication operations
 
 class Symb(dict):
+    """Dict subclass representing a symbol (linear combination of letter-string keys).
+
+    Keys are letter strings (e.g. 'aabbcd'), values are integer coefficients.
+    Arithmetic operators act on coefficients: (s1 + s2)[k] = s1[k] + s2[k].
+    Zero-valued entries are automatically dropped from addition/subtraction results.
+    """
     def dict(self):
         return {k:v for k,v in self.items()}
 
@@ -128,6 +147,11 @@ class Symb(dict):
 
 
 class sumlist():
+    """List wrapper with elementwise Symb arithmetic.
+
+    Used for lists of Symb dicts where (list1 + list2)[i] = list1[i] + list2[i].
+    Returned by BCop2ABIG and BCop3ABIG as collections of per-basis-element constraints.
+    """
     def __init__(self,mylist):
         self.list=mylist
         
@@ -165,14 +189,23 @@ class sumlist():
         if key in self: return super().__getitem__(key)
         else: return 0
 
-########################################################################################################################
 class fastRandomSampler(object):
-    #Lists have O(1) random sampling, but O(N) lookup; dicts and sets have O(1) lookup but are unordered.
-    #This wrapper enables O(1) sampling AND lookup in exchange for more preprocessing time.
-    #The way this works- at init, a list is created that is the same size as the dict/set.
-    #This maps from the keys to the ints. To sample, draw an integer, pop the key at that spot, then update the list.
-    #Then pop that specific k:v pair from the dict (which we can do, since lookup is quick).
-    #This wrapper supports both dicts and sets.
+    """O(1) random sampling + O(1) lookup data structure for dicts and sets.
+
+    Maintains a parallel list (keylist) and reverse map (key_to_int) alongside
+    the underlying dict/set. To pop a random element:
+      1. Draw a random int i, get key = keylist[i]
+      2. Swap keylist[i] with the last element, pop the last
+      3. Remove key from the dict/set (O(1) lookup)
+
+    Optional countdict tracks multiplicity -- keys can be sampled multiple times
+    before being removed (used for scramble/overlap tracking).
+
+    Args:
+        init_elem: dict or set to wrap.
+        countdict: Optional multiplicity counts per key.
+        inplace: If True, mutates init_elem directly (faster but destructive).
+    """
 
     def __init__(self, init_elem, countdict={}, inplace=False):
         # this sampling struct works for dicts and sets, so just flag which it is
