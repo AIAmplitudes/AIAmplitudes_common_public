@@ -1,3 +1,16 @@
+"""
+Polynomial analysis utilities for d-ray coefficients.
+
+D-ray polynomials P(L) predict sewing matrix entries at arbitrary loop order
+via: coeff(L) = P(L) * (-2)^(L-4) * (2L-8)! / (L-4)!
+
+This module provides:
+  - Prime factorization encoding (int_to_factors, frac_to_factors) for compact
+    representation of large integer coefficients
+  - Polynomial parsing from the all7_new_common_factor data file
+  - Coefficient extraction with GCD factoring (get_polynomialcoeffs)
+"""
+
 import os, re, math
 from sympy import Poly, terms_gcd, gcd_list, Rational
 from sympy import factorint, fraction, primerange
@@ -11,8 +24,9 @@ from aiamplitudes_common_public.download_data import relpath
 
 primes = list(primerange(0, 1000))
 
-########### Encoders convert between rationals and prime factors #################
+
 def int_to_factors(value):
+    """Convert an integer to its prime factorization string, e.g. 12 -> '+2E2*3'."""
     prefix = []
     if abs(value) == 1:
         factors = {1: 1}
@@ -44,6 +58,7 @@ def int_to_factors(value):
     return ''.join(prefix)
 
 def frac_to_factors(value):
+    """Convert a rational number to factored numerator/denominator string."""
     val = fraction(value)
     if val[1] == '1':
         prefix = int_to_factors(val[0])
@@ -53,6 +68,7 @@ def frac_to_factors(value):
     return prefix
 
 def enc_elem(elem):
+    """Encode a single coefficient element using prime factorization."""
     if '/' in str(elem):
         return str(int_to_factors(elem.p)) + '/' + str(int_to_factors(elem.q))
     else:
@@ -66,6 +82,7 @@ def parse(t):
                       transformations=standard_transformations + (implicit_multiplication,))
 
 def polynom_convert(filename):
+    """Parse a polynomial data file into a {key: polynomial_string} dict."""
     input_str = readSymb(f'{relpath}/{filename}', filename)
     pattern = r'\[(.*?)\](.*?),'
     matches = re.findall(pattern, input_str)
@@ -77,12 +94,18 @@ def is_pow2(n):
     return (n != 0) and (n & (n - 1) == 0)
 
 def get_runpolynomials():
+    """Load all d-ray polynomials. Returns {'all': ..., 'nonzero': ..., 'unfactorable': ...}."""
     allpolys = polynom_convert('all7_new_common_factor')
     nonzeros = {k:v for k, v in allpolys.items() if v != '0'}
     unfactorable = {k:v for k, v in nonzeros.items() if '(' not in v}
     return {'all': allpolys, 'nonzero':nonzeros, 'unfactorable':unfactorable}
 
 def get_polynomialcoeffs(type):
+    """Extract polynomial coefficients with GCD factoring.
+
+    type='coeffs': returns {key: [[gcd], [coeff/gcd, ...]]} with prime-factored strings.
+    type='coeffs_enc': same but with enc_elem encoding on raw coefficients.
+    """
     mydict=get_runpolynomials()
     mycoeffs={}
     mygcds={}

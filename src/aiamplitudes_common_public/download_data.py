@@ -1,3 +1,12 @@
+"""
+Data download and caching for AIAmplitudes symbol files.
+
+Downloads symbol data from GitHub repositories (public Phase1_data or private
+data_public) and caches them at ~/.local/AIAmplitudesData/. Files are stored
+as .tar archives on GitHub and extracted locally. The module-level `relpath`
+variable points to the cache directory and is used by all other modules.
+"""
+
 from __future__ import annotations
 import tempfile
 import tarfile
@@ -9,11 +18,15 @@ from pathlib import Path
 import shutil
 import git
 
-################### Download tarballs from git ###############################
 public_repo =  "AIAmplitudes/Phase1_data"
 private_repo =  "AIAmplitudes/data_public"
 
 def _cache_path(cache_dir: str | None = None, make_tarfdir = True) -> Path:
+    """Return the local cache directory path, creating it if needed.
+
+    Defaults to ~/.local/AIAmplitudesData/. Falls back to ./cache if
+    the home directory is not writable.
+    """
     if cache_dir is None:
         ampdir = Path.home() / ".local" / "AIAmplitudesData"
         try:
@@ -33,9 +46,11 @@ def _cache_path(cache_dir: str | None = None, make_tarfdir = True) -> Path:
 relpath = _cache_path(None)
 
 def clear_cache():
+    """Delete the entire local cache directory."""
     os.system(f'rm -rf {relpath}')
 
 def get_gitfilenames(the_zipurl):
+    """Scrape a GitHub repo page to find all .tar file names."""
     soup = BeautifulSoup(requests.get(the_zipurl).text)
     files=[]
     for elem in soup.find_all('script', type='application/json'):
@@ -44,6 +59,7 @@ def get_gitfilenames(the_zipurl):
     return files
 
 def download_unpack(myfile: str, local_dir: Path, tarfdir = None):
+    """Stream-download a .tar file and extract it to local_dir."""
     with tempfile.TemporaryFile() as f:
         with requests.get(myfile, stream=True) as r:
             for chunk in r.iter_content(chunk_size=8192):
@@ -58,7 +74,7 @@ def download_unpack(myfile: str, local_dir: Path, tarfdir = None):
     return
 
 def download_all_public(repo: str = public_repo, cache_dir: str | None = None) -> None:
-    #use BS4 to get all the datasets in the public repo
+    """Download all .tar files from the public Phase1_data repo and extract them."""
     local_dir = _cache_path(cache_dir)
     if not len(os.listdir(local_dir))==0:
         print("Local cache not empty! Terminating")
@@ -92,7 +108,7 @@ def download_all_public(repo: str = public_repo, cache_dir: str | None = None) -
     return
 
 def download_all_private(username,mytoken, repo: str = public_repo, cache_dir: str | None = None) -> None:
-    #use the github CLI and token access to get datasets in the private repo
+    """Clone the private data_public repo using token auth and extract all .tar files."""
     local_dir = _cache_path(cache_dir)
     git_url = f"https://{username}:{mytoken}@github.com/AIAmplitudes/data_public.git"
     git.Repo.clone_from(git_url, local_dir)
@@ -131,6 +147,7 @@ def download_all_private(username,mytoken, repo: str = public_repo, cache_dir: s
     return
 
 def download_all(username= None, mytoken = None):
+    """Download all data files. Tries private repo first, falls back to public."""
     if len(os.listdir(relpath)) != 0:
         clear_cache()
     if not username or not mytoken:

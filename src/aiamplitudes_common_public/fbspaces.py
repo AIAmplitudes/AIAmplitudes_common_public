@@ -1,3 +1,25 @@
+"""
+Front-space and back-space basis operations.
+
+Front/back spaces decompose symbol suffixes/prefixes into independent basis
+elements using the physics relations. Two representations are supported:
+
+  - Permissive (P): Overcomplete basis of SB(...) linear combinations.
+    Elements named FP_w_i / BP_w_i. Loaded from frontspace/backspace files.
+  - Restrictive (R): Minimal independent basis of E(...) or SB(...) elements.
+    Elements named FR_w_i / BR_w_i. Loaded from multiinitial/multifinal files.
+
+Each basis has a forward dict (name -> letter expansion) and a flip dict
+(letter string -> name) for bidirectional lookup.
+
+Dimension tables (indexed by weight 0-8):
+  B_number (back):  [1, 3, 6, 12, 24, 45, 85, 155, 279]
+  F_number (front): [1, 3, 9, 21, 48, 108, 246, 555, 1251]
+
+Also provides symbol expansion/compression and relation lookup functions
+that are shared by both common_public and common_dev.
+"""
+
 import re
 import os
 from fractions import Fraction
@@ -6,11 +28,11 @@ from aiamplitudes_common_public.commonclasses import Symb
 from aiamplitudes_common_public.file_readers import readSymb, readFile, SB_to_dict
 from aiamplitudes_common_public.download_data import relpath
 
-B_number= [1, 3, 6, 12, 24, 45, 85, 155, 279, None ] #<- dim_back
-F_number= [1, 3, 9, 21, 48, 108, 246, 555, 1251, None ]
+B_number= [1, 3, 6, 12, 24, 45, 85, 155, 279, None ] # dim of back space at each weight
+F_number= [1, 3, 9, 21, 48, 108, 246, 555, 1251, None ] # dim of front space at each weight
 
-NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, None ] #<-num_bspace_rels
-NF_rels= [0, 3, 9, 33, 78, 180, 402, 921, 2079, None] #<-num_fspace_rels
+NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, None ] # number of back-space relations
+NF_rels= [0, 3, 9, 33, 78, 180, 402, 921, 2079, None] # number of front-space relations
 
 bspacenames = {1: 'singleindep3',
                2: 'doubleindep6',
@@ -51,6 +73,12 @@ frelnames = {1: 'isinglerels3',
             }
 
 def get_perm_fspace(w):
+    """Load the permissive front-space basis at weight w.
+
+    Returns (basedict, flipdict) where:
+      basedict: {'FP_w_i': {letter_string: coefficient, ...}, ...}
+      flipdict: {letter_string: {'FP_w_i': coefficient, ...}, ...} (reverse lookup)
+    """
     prefix='frontspace'
     assert os.path.isfile(f'{relpath}/{prefix}')
     mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}','frontspace',w)))
@@ -65,6 +93,7 @@ def get_perm_fspace(w):
     return basedict, flipdict
 
 def get_perm_bspace(w):
+    """Load the permissive back-space basis at weight w. Returns (basedict, flipdict)."""
     prefix = 'backspace'
     assert os.path.isfile(f'{relpath}/{prefix}')
     mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}', 'backspace', w)))
@@ -79,6 +108,12 @@ def get_perm_bspace(w):
     return basedict, flipdict
 
 def get_rest_bspace(w):
+    """Load the restrictive back-space basis at weight w from the multifinal file.
+
+    Returns (flip, myd) where:
+      flip: {'BR_w_i': letter_string, ...} (basis name -> letters)
+      myd: {letter_string: 'BR_w_i', ...} (letters -> basis name)
+    """
     prefix = 'multifinal'
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
@@ -97,6 +132,10 @@ def get_rest_bspace_OLD(w):
     return flip, myd
 
 def get_rest_fspace(w):
+    """Load the restrictive front-space basis at weight w from the multiinitial file.
+
+    Returns (flip, myd) with the same structure as get_rest_bspace but using FR_ names.
+    """
     prefix='multiinitial'
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(fspacenames[w]))
@@ -106,12 +145,14 @@ def get_rest_fspace(w):
     return flip, myd
 
 def getBrel_eqs(f, w):
+    """Extract back-space relation equations at weight w from an open file handle."""
     res = readFile(f, str(brelnames[w]))
     out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
                                                         re.sub(',\s*(?=[^()]*\))', '', res))[1:]]
     return out
 
 def getFrel_eqs(f, w):
+    """Extract front-space relation equations at weight w. Handles w=7 split files."""
     if w < 7:
         res = readFile(f, str(frelnames[w]))
         out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
@@ -130,8 +171,15 @@ def getFrel_eqs(f, w):
     return out
 
 def rel_to_dict(relstring, bspace=True):
-    # read an F/Bspace rel as a nested dict. if the rel is
-    # E(abc)=-2*E(def)+4*E(bcd), return {abc: {def:-2, bcd:4}}
+    """Parse a relation string into a nested dict.
+
+    e.g. 'E(abc)=-2*E(def)+4*E(bcd)' -> {'abc': {'def': -2, 'bcd': 4}}
+    The outer key is the dependent element; inner dict gives the independent
+    elements and their coefficients in the expansion.
+    """
+    if not relstring or relstring.strip() in ('', 'NULL'):
+        return {None: None}
+
     def expandcoef(c): return Fraction(c + '1') if (len(c) == 1 and not c.isnumeric()) else Fraction(c)
 
     if bspace:
@@ -158,6 +206,7 @@ def rel_to_dict(relstring, bspace=True):
     return {newstring[0]: reldict}
 
 def get_brels(w,relpath):
+    """Load all back-space relations at weight w as a flat {dependent: {indep: coef}} dict."""
     assert (w > 0 and w < 10)
     with open(f'{relpath}/multifinal', 'rt') as f:
         return {k: v for j in getBrel_eqs(f, w) for k, v in rel_to_dict(j).items() if k}
@@ -168,6 +217,7 @@ def get_brels_OLD(w,relpath):
         return {k: v for j in getBrel_eqs(f, w) for k, v in rel_to_dict(j).items() if k}
 
 def get_frels(w,relpath):
+    """Load all front-space relations at weight w as a flat {dependent: {indep: coef}} dict."""
     assert (w > 0)
     with open(f'{relpath}/multiinitial', 'rt') as f:
         return {k: v for j in getFrel_eqs(f, w) for k, v in rel_to_dict(j, False).items() if k}
@@ -184,11 +234,15 @@ def all_rest_bspaces(relpath):
 
 
 ########################################################
-#Functions to expand and compress symbols according to different schemes
+# Functions to expand and compress symbols between F/B-space and letter forms
 ########################################################
 
 def expand_elem(key, opt="all", loaded=None):
-    #expand. If we've already loaded the fspace and bspace dict we need, use that
+    """Expand a compressed key (with F/B-space names) to full letter-basis Symb.
+
+    Each basis element maps to a linear combination of letter strings, so the
+    result is a Symb of {full_letter_key: product_of_coefficients}.
+    """
     def proc_elem(myelem):
         for entry in myelem.split('@'):
             yield entry
@@ -218,9 +272,7 @@ def expand_elem(key, opt="all", loaded=None):
     return Symb(exp_dict)
 
 def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
-    """"
-    Preload the f/b spaces and rels for a given weight combo, in order to process many terms at once
-    """""
+    """Pre-load F/B-space basis dicts and relations into a single dict for batch processing."""
     loaded=dict()
 
     if seam == 'front':
@@ -260,6 +312,10 @@ def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
     return loaded
 
 def get_elem_compression(pattern):
+    """Detect the compression scheme from a single key string.
+
+    Returns (fForm, fweight, seamsize, bForm, bweight).
+    """
     parts = pattern.split('@')
 
     if '_' in parts[0] and '_' in parts[-1]:
@@ -289,10 +345,12 @@ def get_elem_compression(pattern):
     return fForm, fweight, seamsize, bForm, bweight
 
 def get_compression(mySymb):
+    """Detect the compression scheme of a Symb by examining its first key."""
     pattern=next(iter(mySymb))
     return get_elem_compression(pattern)
 
 def expand_symb(mySymb, opt="all"):
+    """Fully expand a compressed symbol to letter-basis form."""
     fForm, fweight, seamsize, bForm, bweight = get_compression(mySymb)
 
     if fForm ==None and bweight == None:
@@ -311,7 +369,10 @@ def expand_symb(mySymb, opt="all"):
     return res
 
 def expand_rform_elem(key, opt="all", loaded=None):
-    #expand. If we've already loaded the fspace and bspace dict we need, use that
+    """Expand a restrictive-form key into individual letter components (flat list).
+
+    Returns (expanded_list, (fweight, bweight)).
+    """
     def proc_elem(myelem):
         for entry in myelem.split('@'):
             if entry.isalpha():
@@ -341,6 +402,7 @@ def expand_rform_elem(key, opt="all", loaded=None):
 
 
 def compress_rform_elem(key, fweight,bweight, seam,loaded=None):
+    """Compress a letter list back to restrictive-form notation using flip dicts."""
     if seam in {"front", "all"}:
         fseam = fweight
         myfflip = loaded["fspace_flip"] if loaded else get_rest_fspace(fweight)[1]
@@ -359,10 +421,7 @@ def compress_rform_elem(key, fweight,bweight, seam,loaded=None):
     return '@'.join(l)
 
 def get_related(rel, seed, slot):
-    # given: a seam letter and indep (restrictive-form) bspace elem
-    # i.e. c@Fr_2_3
-    # AND: a nonlocal relation (integ, triple, etc.)
-    # get: the other non-indep terms it is related to by this relation
+    """Given a seed word and relation, get all related words at the given slot."""
     seedword = list(seed)
     return {','.join(seedword[:slot] + [i for i in elem] + seedword[slot + len(elem):]): relcoef
             for elem, relcoef in rel.items()}
@@ -370,7 +429,7 @@ def get_related(rel, seed, slot):
 
 def get_as_indepsum(fullword, fweight=None, bweight=None, seam=None,
                     loaded=None):
-    # Given a non-indep term, get the indeps it is related to by bspace/fspace rels
+    """Express a non-independent term as a sum of basis (independent) terms."""
     if seam == "back":
         mybflip = loaded["bspace_flip"] if loaded else get_rest_bspace(bweight)[1]
         mybrels = loaded["b_rels"] if loaded else get_brels(bweight,relpath)

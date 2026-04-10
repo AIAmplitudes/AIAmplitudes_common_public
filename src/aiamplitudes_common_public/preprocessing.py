@@ -1,3 +1,15 @@
+"""
+Preprocessing utilities for operator and relation instance generation.
+
+Provides combinatorial generators for operator arguments (slot combinations,
+letter sets, sum tuples) and functions to map operators over symbols, producing
+the {source_key: {target_key: argset}} data structures needed by the instance
+generators.
+
+All argument types use tuples (not lists) for hashability, enabling efficient
+deduplication and set membership tests during generation.
+"""
+
 import itertools
 import datetime
 
@@ -6,13 +18,12 @@ import random
 from aiamplitudes_common_public.rels_utils import get_coeff_from_word,check_slot,find_all,alphabet,count_appearances
 from aiamplitudes_common_public.commonclasses import fastRandomSampler
 
-##########################
-# generators for op_args
-# note: we use tuples rather than lists for all slot combos, letter combos, etc. because tuples are hashable,
-# so we can look up whether or not we've seen them before
-##########################
-
 def gen_slotsets(keylen,k_total,k_pairwise, nslots,exact=False):
+    """Generate all combinations of nslots positions within a key of length keylen.
+
+    Constraints: max(slots) - min(slots) <= k_total, consecutive slots differ by <= k_pairwise.
+    If exact=True, requires max - min == k_total exactly.
+    """
     def slotcombo_generator():
         # generate all combos of n_slots that are within k of each other
         # ('within' here meaning that max(slot) - min(slot) <= k)
@@ -50,13 +61,16 @@ def gen_kpattern_slotsets(keylen,k_pattern,exact=False):
     return set(slot for slot in slotcombo_generator())
 
 def gen_lettersets(nletts):
+    """Generate all combinations (with replacement) of nletts letters from the alphabet."""
     def lettercombo_generator():
         for c in itertools.combinations_with_replacement(alphabet, nletts):yield c
     return set(c for c in lettercombo_generator())
 
 def gen_sumtuples(n_elems, target_sum):
-    #generate all tuples of n_elems nums that sum to a target.
-    #used to insert runs into a key
+    """Generate all tuples of n_elems positive integers that sum to target_sum.
+
+    Used to determine run lengths when inserting letter runs into a key.
+    """
     def sumnum_combo_generator(n_elems, target_sum):
         if n_elems == 0: return
         # generate all sets of n_elems numbers that sum to target_sum.
@@ -68,6 +82,11 @@ def gen_sumtuples(n_elems, target_sum):
     return set(tup for tup in sumnum_combo_generator(n_elems, target_sum))
 
 def gen_op_args(op_argdict):
+    """Generate the full Cartesian product of operator argument sets.
+
+    Combines slot sets, letter sets, sum tuples, and rotation indices as specified
+    in op_argdict. Returns a set of tuples, each a valid argument combination.
+    """
     op_args=[]
     if "slots" in op_argdict:
         if "allcombos" in op_argdict["slots"]:
@@ -117,6 +136,7 @@ def gen_op_args(op_argdict):
     return op_args
 
 def gen_argset_size(op_argdict):
+    """Estimate the combinatorial size of the operator argument set (without enumerating)."""
     argsize=1
     if "slots" in op_argdict:
         a=2 * op_argdict["slots"]["loop"]
@@ -186,6 +206,12 @@ def get_random_argset(op_argdict):
 ################################
 def get_mapdict(key,op_args,operation,targetsymbs={},bad_targets=None,opt='drop_bad_targets',
                 argsfirst=False,no_zero_targets=False, valset=None):
+    """Apply an operator to a single source key with all argument combinations.
+
+    Returns a fastRandomSampler mapping target keys to their argument sets.
+    Two modes: argsfirst ({argtup: target}) or target-first ({target: {argtups}}).
+    Optionally filters out bad targets or drops the source if any target is bad.
+    """
 
     if argsfirst:
         #takes form: {src: {slot0:tgt0,slot1:tgt1,...}... etc.}
@@ -227,7 +253,7 @@ def get_mapdict(key,op_args,operation,targetsymbs={},bad_targets=None,opt='drop_
     return fastRandomSampler(fulldict,inplace=True)
 
 def opsymb_generator(sourcesymb, targetsymbs, target_badsymb, operator, op_args, opt='drop_bad_targets', no_zero_targets=False):
-    #assume we've already pruned the source symb
+    """Preprocess: apply operator to every key in sourcesymb, building the full mapping."""
     valset=set()
     outdict={key:get_mapdict(key,op_args,operator,targetsymbs,target_badsymb,no_zero_targets=no_zero_targets, opt=opt, valset=valset) for key in sourcesymb}
     #print(outdict)
@@ -235,6 +261,7 @@ def opsymb_generator(sourcesymb, targetsymbs, target_badsymb, operator, op_args,
     return fastRandomSampler(outdict)
 
 def prune_opsymb(opsymb, bad_source_symb, bad_tgt_symb, drop_source_if_bad_targets=False):
+    """Remove bad source/target keys from a preprocessed operator mapping."""
     print(f"pruning: starting with {len(opsymb.keys())} source keys and {len(opsymb.values())} target keys")
     for k,v in list(opsymb.items()):
         if k in bad_source_symb: opsymb.popitem(k)
@@ -250,7 +277,10 @@ def prune_opsymb(opsymb, bad_source_symb, bad_tgt_symb, drop_source_if_bad_targe
     return opsymb
 
 def check_key_and_get_slots(symb, loop, rel, rel_slot, format):
-    #for all keys in the symb, check whether they contain the desired substring in a valid slot. If so, store the slot.
+    """For each key in symb, find all slots where a relation substring matches.
+
+    Yields (key, slot_set) pairs for keys that contain at least one match.
+    """
     nletter=len(list(rel.keys())[0])
     my_slot= None
     if format == "full":
@@ -281,6 +311,7 @@ def check_key_and_get_slots(symb, loop, rel, rel_slot, format):
         yield symbkey, slots
 
 def relsymb_generator(relnames, rels, overlaps, rel_slots, trimsymb, loop, format):
+    """Generate {key: slots} dicts for each relation type, filtering from trimsymb."""
     for name, rel, rel_slot, overlap in zip(relnames, rels, rel_slots, overlaps):
         print(f'generating relsymb {name}:{datetime.datetime.now()}')
         if overlap == 0:
@@ -293,6 +324,7 @@ def relsymb_generator(relnames, rels, overlaps, rel_slots, trimsymb, loop, forma
                        check_key_and_get_slots(trimsymb, loop, rel, rel_slot, format)}
 
 def prune_relsymbs(relsymbs, badsymb=None):
+    """Remove keys in badsymb from each relation symbol dict."""
     if badsymb is None:
         badsymb = {}
     newsymbs = [{k: relsymb[k] for k in {*relsymb} - {*badsymb}} for relsymb in relsymbs]
@@ -300,7 +332,11 @@ def prune_relsymbs(relsymbs, badsymb=None):
 
 
 def tag_opinstance(instance, op_meta_args, op_tags, argslist, tagmode, is_pseudodata):
-    #get the names of the operator args
+    """Annotate an operator instance with metadata tags (slots, letters, appearances).
+
+    Supports multiple tagging modes: 'slots', 'letters_and_slots_left',
+    'letter_appearances_left', 'letters_only', etc.
+    """
     argtypes=list(op_meta_args.keys())
     #print(argtypes)
     if "slots" in op_meta_args: slotslist=argslist[argtypes.index("slots")]
@@ -371,6 +407,7 @@ def tag_opinstance(instance, op_meta_args, op_tags, argslist, tagmode, is_pseudo
     return rel_instance
 
 def tag_rel_instance(instance,rel_tags,my_slot, is_pseudodata):
+    """Wrap a relation instance dict with label and slot tags for training."""
     mytags=[tag for tag in rel_tags]
     if my_slot is not None: mytags += [f'SLOT_{my_slot}']
     if is_pseudodata: mytags += ['PSEUDO']
