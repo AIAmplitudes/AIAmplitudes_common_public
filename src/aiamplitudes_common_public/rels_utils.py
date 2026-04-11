@@ -3,7 +3,8 @@ Relation lookup tables and utilities for scattering amplitude symbols.
 
 Defines all homogeneous linear relations that valid Phi2 symbols must satisfy:
   - First-entry conditions: first letter cannot be d, e, or f
-  - Double-adjacency (Steinmann): forbidden adjacent pairs {ad, be, cf, de, df, ef}
+  - Double-adjacency (Steinmann): 12 forbidden ordered adjacent pairs
+    {ad, da, be, eb, cf, fc, de, ed, df, fd, ef, fe}
   - Triple-adjacency: aab + abb + acb = 0 (plus dihedral images)
   - Integrability: 3 independent equations from the pair table
   - Final-entry conditions: 29 relations on the last 1-4 letters

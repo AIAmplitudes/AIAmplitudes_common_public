@@ -1,7 +1,7 @@
 """
 Front-space and back-space basis operations.
 
-Front/back spaces decompose symbol suffixes/prefixes into independent basis
+Front/back spaces decompose symbol prefixes/suffixes into independent basis
 elements using the physics relations. Two representations are supported:
 
   - Permissive (P): Overcomplete basis of SB(...) linear combinations.

@@ -24,11 +24,13 @@ def Phi2Symb(L, type=None, uncompress = True):
     """Load the Phi2 (tr(F^2)) form factor symbol at loop order L.
 
     Args:
-        L: Loop order (1-8). Word length = 2L.
+        L: Loop order (1-8). Word length = 2L for full format;
+           quad/oct keys have shorter stems plus compressed tokens.
         type: None/'full' for expanded, 'quad' for 4-letter compressed,
               'oct' for 8-letter compressed.
         uncompress: If True and type is None, auto-expands quad/oct data.
-                    L=7 auto-expands from quad (slow). L=8 has no auto-expand.
+                    L=7 auto-expands from quad (slow).
+                    L=8 requires explicit type='oct'; type=None raises ValueError.
     Returns:
         Dict mapping letter-string keys to integer coefficients.
     """
@@ -86,7 +88,8 @@ def Phi3Symbs():
     return {L:Phi3Symb(L) for L in [1,2,3,4,5,6]}
 
 def runpolynomials(type=None):
-    """Load d-ray polynomials. Pass type='coeffs' or 'coeffs_enc' for coefficient form."""
+    """Load d-ray polynomials. type is required: pass 'coeffs' or 'coeffs_enc' for
+    coefficient form, or any other string for the raw polynomial dict."""
     if "coeffs" in type:
         return get_polynomialcoeffs(type)
     else:

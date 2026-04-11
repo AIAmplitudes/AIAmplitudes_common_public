@@ -6,7 +6,7 @@ for elementwise operations on symbol coefficients. Supports in-place
 add_small/sub_small for incremental updates without creating new dicts.
 
 sumlist: list wrapper with elementwise addition/subtraction/multiplication,
-used for lists of Symb objects (e.g. output of BCop2ABIG).
+used for lists of Symb objects (e.g. coproduct operations in common_dev).
 
 fastRandomSampler: O(1) random sampling + O(1) lookup data structure.
 Wraps a dict or set with a bidirectional key<->int mapping so that random
@@ -150,7 +150,7 @@ class sumlist():
     """List wrapper with elementwise Symb arithmetic.
 
     Used for lists of Symb dicts where (list1 + list2)[i] = list1[i] + list2[i].
-    Returned by BCop2ABIG and BCop3ABIG as collections of per-basis-element constraints.
+    Used by coproduct operations as collections of per-basis-element constraints.
     """
     def __init__(self,mylist):
         self.list=mylist

@@ -208,8 +208,8 @@ def get_mapdict(key,op_args,operation,targetsymbs={},bad_targets=None,opt='drop_
                 argsfirst=False,no_zero_targets=False, valset=None):
     """Apply an operator to a single source key with all argument combinations.
 
-    Returns a fastRandomSampler mapping target keys to their argument sets.
-    Two modes: argsfirst ({argtup: target}) or target-first ({target: {argtups}}).
+    Returns a fastRandomSampler. In default mode, maps target keys to their
+    argument sets. In argsfirst mode, maps argument tuples to target keys.
     Optionally filters out bad targets or drops the source if any target is bad.
     """
 
