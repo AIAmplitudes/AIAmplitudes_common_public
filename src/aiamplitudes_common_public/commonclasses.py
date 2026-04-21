@@ -93,7 +93,7 @@ class Symb(dict):
             elif k in self:
                 val = self[k]
             elif k in othersymb:
-                val = othersymb[k]
+                val = -othersymb[k]
             else:
                 val = None
             return val
@@ -175,8 +175,8 @@ class sumlist():
     def __rsub__(self, otherlist):
         if isinstance(otherlist,sumlist): os=otherlist.list
         else: os=otherlist
-        
-        outlist=[a_i - b_i for a_i, b_i in zip(otherlist, os)]
+
+        outlist=[a_i - b_i for a_i, b_i in zip(os, self.list)]
         return sumlist(outlist)
     
     def __mul__(self,const):
@@ -186,8 +186,7 @@ class sumlist():
         return [const*elem for elem in self.list]
     
     def __getitem__(self,key):
-        if key in self: return super().__getitem__(key)
-        else: return 0
+        return self.list[key]
 
 class fastRandomSampler(object):
     """O(1) random sampling + O(1) lookup data structure for dicts and sets.
