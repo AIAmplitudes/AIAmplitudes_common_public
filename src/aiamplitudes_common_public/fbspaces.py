@@ -153,11 +153,11 @@ def getBrel_eqs(f, w):
 
 def getFrel_eqs(f, w):
     """Extract front-space relation equations at weight w. Handles w=7 split files."""
-    if w < 7:
+    if w != 7:
         res = readFile(f, str(frelnames[w]))
         out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
                                                         re.sub(',\s*(?=[^()]*\))', '', res))[1:]]
-    if w == 7:
+    else:
         zeros=str(frelnames[w]['zero'])
         nonzeros=str(frelnames[w]['nonzero'])
 
