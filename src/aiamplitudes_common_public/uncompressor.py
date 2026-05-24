@@ -316,6 +316,31 @@ def UnQuadLoop(loop):
 
 # ── Single-term lookup ──────────────────────────────────────────────────────
 
+def _quad_indep_values(prefix, data):
+    """Read the 24 quad-basis indep values for `prefix` from `data`.
+
+    Per-prefix work that's identical across every suffix sharing this prefix
+    -- factor it out so LazySymbol can cache it.
+    """
+    import numpy as np
+    linquads, _ = get24(prefix + "dddd")
+    indep_values = np.zeros(24)
+    for i, d in enumerate(linquads):
+        k = d[:-4] + quad_codes[d[-4:]]
+        if k in data:
+            indep_values[i] = data[k]
+    return indep_values
+
+
+def _quad_term_from_indep(indep_values, suffix, prefix_last_letter):
+    """Single column dot product against the per-letter quad basis matrix.
+    Cheap; runs per-suffix on top of a cached indep_values."""
+    B, _suffixes, sf_index = _get_quad_matrix(prefix_last_letter)
+    if suffix not in sf_index:
+        return 0
+    return round(indep_values @ B[:, sf_index[suffix]])
+
+
 def UnQuadTerm(key, data=None):
     """Look up a single symbol term from quad-compressed data.
 
@@ -330,7 +355,6 @@ def UnQuadTerm(key, data=None):
     Returns:
         Integer coefficient of this term (0 if absent).
     """
-    import numpy as np
     from aiamplitudes_common_public import Phi2Symb
 
     loop = len(key) // 2
@@ -340,20 +364,11 @@ def UnQuadTerm(key, data=None):
     if data is None:
         data = Phi2Symb(loop, "quad")
 
-    B, suffixes, sf_index = _get_quad_matrix(prefix[-1])
+    _, _, sf_index = _get_quad_matrix(prefix[-1])
     if suffix not in sf_index:
         return 0
-    j = sf_index[suffix]
-
-    # Read the 24 indep values
-    linquads, _ = get24(prefix + "dddd")
-    indep_values = np.zeros(24)
-    for i, d in enumerate(linquads):
-        k = d[:-4] + quad_codes[d[-4:]]
-        if k in data:
-            indep_values[i] = data[k]
-
-    return round(indep_values @ B[:, j])
+    indep_values = _quad_indep_values(prefix, data)
+    return _quad_term_from_indep(indep_values, suffix, prefix[-1])
 
 
 # ── Oct (octuple) decompression ────────────────────────────────────────────
@@ -564,6 +579,46 @@ def UnOctLoop(loop):
     return res
 
 
+def _oct_rest_vals(prefix, data):
+    """Stages 1-2 of oct decompression: read the 279 oct-lookup values for
+    `prefix` from `data` and apply C^{-T} to produce rest_vals (length 279).
+
+    Per-prefix work identical across every suffix sharing this prefix --
+    factored out so LazySymbol can cache it. This is the expensive step
+    (matrix work on 279 ints); the per-suffix step that consumes rest_vals
+    is just a single sparse column dot product.
+    """
+    linkeys, _ = get279(prefix)
+    oct_lookup = [0] * 279
+    for i, k in enumerate(linkeys):
+        if k in data:
+            oct_lookup[i] = data[k]
+    return _oct_step1(oct_lookup)
+
+
+def _oct_term_from_rest_vals(rest_vals, suffix, prefix_last_letter):
+    """Stage 3 of oct decompression: single sparse column dot product against
+    rest_vals using the per-letter B matrix for this suffix. Cheap."""
+    _load_oct_matrices()
+    m = _oct_matrix_cache[prefix_last_letter]
+    if suffix not in m['sf_index']:
+        return 0
+    j = m['sf_index'][suffix]
+    rows = m['rows']
+    nums = m['nums']
+    col_ptrs = m['col_ptrs']
+    start = int(col_ptrs[j])
+    end = int(col_ptrs[j + 1])
+    col_lcm = int(m['col_lcms'][j])
+    total = 0
+    for idx in range(start, end):
+        total += rest_vals[int(rows[idx])] * int(nums[idx])
+    if col_lcm != 1:
+        assert total % col_lcm == 0
+        total //= col_lcm
+    return total
+
+
 def UnOctTerm(key, data=None):
     """Look up a single symbol term from oct-compressed data.
 
@@ -590,30 +645,5 @@ def UnOctTerm(key, data=None):
     m = _oct_matrix_cache[prefix[-1]]
     if suffix not in m['sf_index']:
         return 0
-    j = m['sf_index'][suffix]
-
-    # Read oct-lookup values
-    linkeys, _ = get279(prefix)
-    oct_lookup = [0] * 279
-    for i, k in enumerate(linkeys):
-        if k in data:
-            oct_lookup[i] = data[k]
-
-    # Step 1: oct_lookup -> rest_vals
-    rest_vals = _oct_step1(oct_lookup)
-
-    # Step 2: single column dot product
-    rows = m['rows']
-    nums = m['nums']
-    col_ptrs = m['col_ptrs']
-    start = int(col_ptrs[j])
-    end = int(col_ptrs[j + 1])
-    col_lcm = int(m['col_lcms'][j])
-
-    total = 0
-    for idx in range(start, end):
-        total += rest_vals[int(rows[idx])] * int(nums[idx])
-    if col_lcm != 1:
-        assert total % col_lcm == 0
-        total //= col_lcm
-    return total
+    rest_vals = _oct_rest_vals(prefix, data)
+    return _oct_term_from_rest_vals(rest_vals, suffix, prefix[-1])
