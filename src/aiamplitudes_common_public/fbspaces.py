@@ -57,8 +57,8 @@ fspacenames = {1 : 'isingleindep3',
                3 : 'itripleindep21',
                4 : 'iquadindep48',
                5 : 'iquintindep108',
-               6 : 'ihexindep246',
-               7 : 'iheptindep555',
+               6 : 'ihexindep242',
+               7 : 'iheptindep540',
                8 : 'ioctindep1251'}
 
 
@@ -67,8 +67,8 @@ frelnames = {1: 'isinglerels3',
              3: 'itriplerels33',
              4: 'iquadrels78',
              5: 'iquintrels180',
-             6: 'ihexrels402',
-             7: {'zero':'iheptrels_zerolist410', 'nonzero':'iheptrels_nonzerolist511'},
+             6: 'ihexrels406',
+             7: {'zero':'iheptrels_z', 'nonzero':'iheptrels_c'},
              8: 'ioctrels2079',
             }
 
@@ -82,7 +82,7 @@ def get_perm_fspace(w):
     prefix='frontspace'
     assert os.path.isfile(f'{relpath}/{prefix}')
     mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}','frontspace',w)))
-    newstr = re.split(":=|\[|\]", mystr)[4]
+    newstr = re.split(r":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
     basedict = {f'FP_{w}_{i+1}': SB_to_dict(el) for i, el in enumerate(dev)}
     flipdict = {}
@@ -97,7 +97,7 @@ def get_perm_bspace(w):
     prefix = 'backspace'
     assert os.path.isfile(f'{relpath}/{prefix}')
     mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}', 'backspace', w)))
-    newstr = re.split(":=|\[|\]", mystr)[4]
+    newstr = re.split(r":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
     basedict = {f'BP_{w}_{i+1}': SB_to_dict(el) for i, el in enumerate(dev)}
     flipdict = {}
@@ -114,19 +114,12 @@ def get_rest_bspace(w):
       flip: {'BR_w_i': letter_string, ...} (basis name -> letters)
       myd: {letter_string: 'BR_w_i', ...} (letters -> basis name)
     """
-    prefix = 'multifinal'
+    #prefix = 'multifinal_new_norm'
+    #prefix = 'multifinal'
+    prefix = 'phi2multifinal_E'
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w]))
-    myindeps = [elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
-    myd = {elem: f'BR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
-    flip = {f'BR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
-    return flip, myd
-
-def get_rest_bspace_OLD(w):
-    prefix = 'multifinal_new_norm'
-    assert os.path.isfile(f'{relpath}/{prefix}')
-    res=readSymb(f'{relpath}/{prefix}',str(bspacenames[w])+' ')
-    myindeps = [elem for elem in re.split(":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
+    myindeps = [elem for elem in re.split(r":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
     myd = {elem: f'BR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
     flip = {f'BR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
@@ -136,38 +129,76 @@ def get_rest_fspace(w):
 
     Returns (flip, myd) with the same structure as get_rest_bspace but using FR_ names.
     """
-    prefix='multiinitial'
+    #prefix='multiinitial'
+    prefix='multiinitial_E'
     assert os.path.isfile(f'{relpath}/{prefix}')
     res=readSymb(f'{relpath}/{prefix}',str(fspacenames[w]))
-    myindeps = [elem for elem in re.split(":=\[|SB\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
+    myindeps = [elem for elem in re.split(r":=\[|SB\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
     myd = {elem: f'FR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
     flip = {f'FR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
     return flip, myd
 
 def getBrel_eqs(f, w):
     """Extract back-space relation equations at weight w from an open file handle."""
-    res = readFile(f, str(brelnames[w]))
-    out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
-                                                        re.sub(',\s*(?=[^()]*\))', '', res))[1:]]
+    res = readFile(f, str(brelnames[w]) + ' :=')
+    out = _parse_rel_block(res)
+    out = _resolve_ops(out, f)
+    return out
+
+def _parse_rel_block(res):
+    """Parse a single relation block string into a list of equation strings."""
+    # Remove commas only inside parentheses (SB(a,b,c) -> SB(abc), E(a,b) -> E(ab))
+    def _strip_inner_commas(s):
+        out = []
+        depth = 0
+        for ch in s:
+            if ch == '(':
+                depth += 1
+                out.append(ch)
+            elif ch == ')':
+                depth -= 1
+                out.append(ch)
+            elif ch == ',' and depth > 0:
+                pass
+            else:
+                out.append(ch)
+        return ''.join(out)
+
+    cleaned = _strip_inner_commas(res)
+    return [re.sub(r'\s+', '', elem) for elem in
+            re.split(r":=\s*\[|,|\]\s*:", cleaned)[1:] if elem.strip()]
+
+def _resolve_ops(elems, f):
+    """Resolve any op(...) references by reading the referenced sections from f."""
+    out = []
+    for elem in elems:
+        m = re.match(r'^op\((\w+)\)$', elem)
+        if m:
+            ref_name = m.group(1)
+            f.seek(0)
+            ref_res = readFile(f, ref_name + ' :=')
+            out.extend(_parse_rel_block(ref_res))
+        else:
+            out.append(elem)
     return out
 
 def getFrel_eqs(f, w):
     """Extract front-space relation equations at weight w. Handles w=7 split files."""
     if w != 7:
-        res = readFile(f, str(frelnames[w]))
-        out = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
-                                                        re.sub(',\s*(?=[^()]*\))', '', res))[1:]]
+        res = readFile(f, str(frelnames[w]) + ' :=')
+        out = _parse_rel_block(res)
+        out = _resolve_ops(out, f)
     else:
         zeros=str(frelnames[w]['zero'])
         nonzeros=str(frelnames[w]['nonzero'])
 
-        res_zero = readFile(f, zeros)
-        res_nonzero = readFile(f, nonzeros)
-        out_zero = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
-                                                        re.sub(',\s*(?=[^()]*\))', '', res_zero))[1:]]
-        out_nonzero = [re.sub('\s+', '', elem) for elem in re.split(":= \[|,|\] :",
-                                                        re.sub(',\s*(?=[^()]*\))', '', res_nonzero))[1:]]
-        out=out_zero+out_nonzero
+        f.seek(0)
+        res_zero = readFile(f, zeros + ' :=')
+        f.seek(0)
+        res_nonzero = readFile(f, nonzeros + ' :=')
+        out_zero = _parse_rel_block(res_zero)
+        out_nonzero = _parse_rel_block(res_nonzero)
+        out = _resolve_ops(out_zero + out_nonzero, f)
     return out
 
 def rel_to_dict(relstring, bspace=True):
@@ -183,13 +214,14 @@ def rel_to_dict(relstring, bspace=True):
     def expandcoef(c): return Fraction(c + '1') if (len(c) == 1 and not c.isnumeric()) else Fraction(c)
 
     if bspace:
-        newstring = [elem for elem in re.split("=|E\(|\)", re.sub('#', '',
+        newstring = [elem for elem in re.split(r"=|E\(|\)", re.sub('#', '',
                                                                   re.sub('[,*]', '', relstring))) if elem]
     else:
-        newstring = [elem for elem in re.split("=|SB\(|\)", re.sub('#', '',
+        newstring = [elem for elem in re.split(r"=|SB\(|\)", re.sub('#', '',
                                                                   re.sub('[,*]', '', relstring))) if elem]
 
     if len(newstring) == 0: return {None: None}
+    if len(newstring) == 1: return {newstring[0]: {None: 0}}
     if newstring[1] == '0':
         reldict = {None: 0}
     else:
@@ -208,18 +240,15 @@ def rel_to_dict(relstring, bspace=True):
 def get_brels(w,relpath):
     """Load all back-space relations at weight w as a flat {dependent: {indep: coef}} dict."""
     assert (w > 0 and w < 10)
-    with open(f'{relpath}/multifinal', 'rt') as f:
-        return {k: v for j in getBrel_eqs(f, w) for k, v in rel_to_dict(j).items() if k}
-
-def get_brels_OLD(w,relpath):
-    assert (w > 0 and w < 10)
-    with open(f'{relpath}/multifinal_new_norm', 'rt') as f:
+    #with open(f'{relpath}/multifinal', 'rt') as f:
+    with open(f'{relpath}/phi2multifinal_E', 'rt') as f:
         return {k: v for j in getBrel_eqs(f, w) for k, v in rel_to_dict(j).items() if k}
 
 def get_frels(w,relpath):
     """Load all front-space relations at weight w as a flat {dependent: {indep: coef}} dict."""
     assert (w > 0)
-    with open(f'{relpath}/multiinitial', 'rt') as f:
+    #with open(f'{relpath}/multiinitial', 'rt') as f:
+    with open(f'{relpath}/multiinitial_E', 'rt') as f:
         return {k: v for j in getFrel_eqs(f, w) for k, v in rel_to_dict(j, False).items() if k}
 
 def all_perm_bspaces(relpath):

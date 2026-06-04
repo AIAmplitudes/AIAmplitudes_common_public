@@ -71,8 +71,7 @@ def apply_backspace_only(prefix, res):
 
 # ── Parse octic93 ────────────────────────────────────────────────────────
 
-datapath = os.path.join(os.path.dirname(__file__), '..', '..', 'LanceData_New',
-                        'oldFiles', 'EZ_symb_oct_new_norm')
+datapath = os.path.join(relpath, 'EZ_symb_oct_new_norm')
 with open(datapath, 'r') as f:
     content = f.read()
 
