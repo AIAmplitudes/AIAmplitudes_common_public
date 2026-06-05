@@ -166,6 +166,58 @@ _min_prefix = {'a': 'aa', 'b': 'ab', 'c': 'ac', 'd': 'bd', 'e': 'ae', 'f': 'af'}
 
 _quad_matrix_cache = {}
 
+# ── Matrix-derivation helpers ────────────────────────────────────────────────
+#
+# Used by scripts/derive_oct_matrix.py when regenerating data/oct_matrices.npz
+# from the underlying physics relations. Not on the runtime UnOct/UnQuad path.
+
+_oct_rels_cache = None
+
+
+def _load_oct_rels():
+    """Back-space relation tables at weights 2..8, filtered to nonzero relations.
+
+    Returns {weight: {dep_word: {ind_word: coef}}}, where each entry expresses
+    a dependent suffix as a linear combination of independent ones. Relations
+    where the dependent expands to identically zero (encoded as `{None: 0}` in
+    the raw table) are dropped here -- callers see only structurally-nontrivial
+    expansions. Cached after first call.
+    """
+    global _oct_rels_cache
+    if _oct_rels_cache is not None:
+        return _oct_rels_cache
+    from aiamplitudes_common_public.fbspaces import get_brels
+    from aiamplitudes_common_public.download_data import relpath
+    out = {}
+    for w in range(2, 9):
+        rels = get_brels(w, relpath)
+        out[w] = {k: v for k, v in rels.items() if v != {None: 0}}
+    _oct_rels_cache = out
+    return out
+
+
+def _get_prepends(n, last_idx):
+    """All length-`n` letter strings whose first letter is adjacency-allowed
+    after the letter at index `last_idx` (0='a' .. 5='f') AND whose internal
+    consecutive pairs respect `AdjacencyMap`.
+
+    Returns `[""]` for `n == 0`. Final-entry / first-entry conditions on the
+    full word are NOT checked here -- callers run `Admissible(prefix + pre +
+    dep)` on the assembled key downstream.
+    """
+    if n == 0:
+        return ['']
+    out = []
+    def recurse(s, prev_idx):
+        if len(s) == n:
+            out.append(s)
+            return
+        for ch_idx in range(6):
+            if AdjacencyMap[prev_idx][ch_idx]:
+                recurse(s + chr(ord('a') + ch_idx), ch_idx)
+    recurse('', last_idx)
+    return out
+
 def _apply_relations_exact(prefix, res):
     """Apply eq4, eq3, eq2 relations.
 

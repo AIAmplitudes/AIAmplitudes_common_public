@@ -257,7 +257,13 @@ for last_letter in 'abcdef':
 
 # ── Save ─────────────────────────────────────────────────────────────────
 
-outpath = os.path.join(os.path.dirname(__file__), '..', 'data', 'oct_matrices.npz')
+# Output path: env var OCT_MATRIX_OUT overrides the default (used for
+# verification runs that compare against the canonical npz without overwriting
+# it).
+outpath = os.environ.get(
+    'OCT_MATRIX_OUT',
+    os.path.join(os.path.dirname(__file__), '..', 'data', 'oct_matrices.npz'),
+)
 os.makedirs(os.path.dirname(outpath), exist_ok=True)
 
 save_dict = {
