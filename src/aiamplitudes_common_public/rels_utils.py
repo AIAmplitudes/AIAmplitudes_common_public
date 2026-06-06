@@ -120,18 +120,30 @@ final_entries_rel_table = [{'a': 1}, {'b': 1}, {'c': 1},  # eq 4.6 (idx: 0-2)
                            {'fbbd': 1, 'dbbd': -1, 'bbdd': 1, 'faff': -1 / 2, 'dbdd': 1 / 2, 'fbdd': -1 / 2,
                             'eaff': 1 / 2, 'aeee': 1 / 2, 'bfff': -1 / 2}]  # eq 4.16 (idx: 28)
 
-# multi-initial-entries relations: plus dihedral symmetry
-# new order: one-term relations, short relations (<=4 terms), long relations (>4 terms).
-initial_entries_rel_table = [{'ad': 1},
-                             {'aad': 1}, {'bcf': 1}, {'bde': 1}, {'bdf': 1}, {'bda': 1}, {'abd': 1},
-                             {'cb': 1, 'bc': -1},
-                             {'cd': 1, 'bd': -1},
-                             {'aaf': 1, 'bbf': 1, 'abf': -1},
-                             {'aab': 1, 'aac': 1, 'cca': 1, 'bba': -1, 'aba': -1},
-                             {'bba': 1, 'bbc': 1, 'ccb': 1, 'aab': -1, 'abb': -1},
-                             {'abc': 1, 'aac': 1, 'bbc': 1, 'cca': 1, 'ccb': 1},
-                             {'aac': 1, 'cca': 1, 'bbc': -1, 'ccb': -1, 'afa': 1 / 2, 'aaf': -1 / 2, 'bbf': 1 / 2,
-                              'afb': -1 / 2}]
+# Multi-initial-entries relations: seeds for the dihedral expansion via
+# get_rel_table_dihedral. Each entry is one representative per dihedral orbit;
+# rotations and (when relevant) flips are generated downstream.
+#
+# Transcribed from the canonical Lance Data file ~/.local/AIAmplitudesData/
+# multiinitial -- the `itriplerels33` block for weight 3 and the corresponding
+# weight-2 / weight-1 zero relations. Each weight-3 nonzero entry is annotated
+# with its multiinitial source line.
+initial_entries_rel_table = [
+    # weight-2 / weight-3 zero rels (single-term; expand dihedrally)
+    {'ad': 1},
+    {'aad': 1}, {'bcf': 1}, {'bde': 1}, {'bdf': 1}, {'bda': 1}, {'abd': 1},
+
+    # weight-2 nonzero rels (2-term)
+    {'cb': 1, 'bc': -1},
+    {'cd': 1, 'bd': -1},
+
+    # weight-3 nonzero rels (one seed per dihedral orbit)
+    {'abb': 1, 'aab': 1, 'cab': 1},                                             # SB(a,b,b) = -SB(a,a,b) - SB(c,a,b)
+    {'aaf': 1, 'abf': -2, 'bbf': 1},                                            # SB(a,a,f) = 2*SB(a,b,f) - SB(b,b,f)
+    {'aba': 1, 'aab': -1, 'abc': 1, 'cab': -1},                                 # SB(a,b,a) = SB(a,a,b) - SB(a,b,c) + SB(c,a,b)
+    {'aac': 1, 'cab': -1, 'abc': 1, 'bca': 1, 'cca': 1},                        # SB(a,a,c) = SB(c,a,b) - SB(a,b,c) - SB(b,c,a) - SB(c,c,a)
+    {'afb': 1, 'afa': -1, 'cab': -2, 'bca': 2, 'abf': 1, 'bbf': -1},            # SB(a,f,b) = SB(a,f,a) + 2*SB(c,a,b) - 2*SB(b,c,a) - SB(a,b,f) + SB(b,b,f)
+]
 
 nonimaged_rel_table={'first': first_entry_rel_table,
                'double': double_adjacency_rel_table,
