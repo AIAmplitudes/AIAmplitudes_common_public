@@ -13,11 +13,20 @@ from aiamplitudes_common_public.download_data import relpath
 from aiamplitudes_common_public.file_readers import convert,get_relpermdict
 from aiamplitudes_common_public.polynomial_utils import polynom_convert, get_runpolynomials, get_polynomialcoeffs
 from aiamplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace, expand_symb
-from aiamplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace
+from aiamplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace, get_perm_fspace_wt6
 from aiamplitudes_common_public.rels_utils import alphabet,quad_prefix
 from aiamplitudes_common_public.uncompressor import UnQuad, UnQuadLoop, UnQuadTerm
 from aiamplitudes_common_public.uncompressor import UnOct, UnOctLoop, UnOctTerm
 from aiamplitudes_common_public.lazy_symbol import LazySymbol
+
+phi2_backspace_file = 'phi2multifinal_E'
+phi3_backspace_file = 'phi3multifinal_E'
+frontspace_file = 'multiinitial_E'
+
+_backspace_files = {
+    'phi2': phi2_backspace_file,
+    'phi3': phi3_backspace_file,
+}
 
 
 def Phi2Symb(L, type=None, uncompress = True):
@@ -95,13 +104,13 @@ def runpolynomials(type=None):
     else:
         return get_runpolynomials()
 
-def br_rels(w,mydir=relpath):
+def br_rels(w, optrace='phi2', mydir=relpath):
     """Load back-space (restrictive) relations at weight w."""
-    return get_brels(w,mydir)
+    return get_brels(w, mydir, prefix=_backspace_files[optrace])
 
 def fr_rels(w,mydir=relpath):
     """Load front-space (restrictive) relations at weight w."""
-    return get_frels(w,mydir)
+    return get_frels(w,mydir, prefix=frontspace_file)
 
 def fp_1l_rels(w,mydir=relpath):
     """Load front-space permissive 1-letter coproduct relations at weight w."""
@@ -111,27 +120,46 @@ def fp_2l_rels(w,mydir=relpath):
     """Load front-space permissive 2-letter coproduct relations at weight w."""
     return get_relpermdict(mydir, w, "front", "twoletter")
 
-def bp_1l_rels(w,mydir=relpath):
+def bp_1l_rels(w, mydir=relpath):
     """Load back-space permissive 1-letter coproduct relations at weight w."""
     return get_relpermdict(mydir, w, "back", "oneletter")
 
-def bp_2l_rels(w,mydir=relpath):
+def bp_2l_rels(w, mydir=relpath):
     """Load back-space permissive 2-letter coproduct relations at weight w."""
     return get_relpermdict(mydir, w, "back", "twoletter")
 
+def br_zeros(w, optrace='phi2', mydir=relpath):
+    """Return list of back-space elements that vanish at weight w."""
+    return [k for k, v in get_brels(w, mydir, prefix=_backspace_files[optrace]).items() if v == {None: 0}]
+
+def fr_zeros(w,mydir=relpath):
+    """Return list of front-space elements that vanish at weight w."""
+    return [k for k, v in get_frels(w, mydir, prefix=frontspace_file).items() if v == {None: 0}]
+
+def br_nzrels(w, optrace='phi2', mydir=relpath):
+    """Return non-zero back-space relations at weight w (dependent -> {indep: coef})."""
+    return {k: v for k, v in get_brels(w, mydir, prefix=_backspace_files[optrace]).items() if v != {None: 0}}
+
+def fr_nzrels(w,mydir=relpath):
+    """Return non-zero front-space relations at weight w (dependent -> {indep: coef})."""
+    return {k: v for k, v in get_frels(w, mydir, prefix=frontspace_file).items() if v != {None: 0}}
+
 def fspace(w,rp="P"):
     """Load front-space basis dict at weight w. rp='P' for permissive, 'R' for restrictive."""
-    if w>0:
-        if rp == "P": return get_perm_fspace(w)[0]
-        elif rp == "R": return get_rest_fspace(w)[0]
+    if w == 6 and rp == "P":
+        return get_perm_fspace_wt6()
+    else:
+        if w>0:
+            if rp == "P": return get_perm_fspace(w)[0]
+            elif rp == "R": return get_rest_fspace(w)[0]
+            else: return
         else: return
-    else: return
 
-def bspace(w,rp="P"):
+def bspace(w, rp="P", optrace='phi2'):
     """Load back-space basis dict at weight w. rp='P' for permissive, 'R' for restrictive."""
     if w>0:
         if rp == "P": return get_perm_bspace(w)[0]
-        elif rp == "R": return get_rest_bspace(w)[0]
+        elif rp == "R": return get_rest_bspace(w, prefix=_backspace_files[optrace])[0]
         else: return
     else: return
 
@@ -141,10 +169,10 @@ def fspace_flip(w,rp="P"):
     elif rp == "R": return get_rest_fspace(w)[1]
     else: return
 
-def bspace_flip(w,rp="P"):
+def bspace_flip(w, rp="P", optrace='phi2'):
     """Load back-space reverse-lookup dict (letter string -> basis name) at weight w."""
     if rp == "P": return get_perm_bspace(w)[1]
-    elif rp == "R": return get_rest_bspace(w)[1]
+    elif rp == "R": return get_rest_bspace(w, prefix=_backspace_files[optrace])[1]
     else: return
 
 

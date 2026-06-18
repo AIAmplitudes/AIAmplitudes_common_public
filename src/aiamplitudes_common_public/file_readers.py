@@ -100,6 +100,49 @@ def SB_to_dict(mystring):
     sbdict = {elem[1]: to_coef(elem[0]) for elem in m2 if len(elem) > 1}
     return sbdict
 
+
+def SB_to_dict_float(mystring):
+    """Parse a string of SB(...) terms into a {key: float coefficient} dict.
+
+    Handles fractional coefficients like 2/3 or -2/3.
+    """
+    from fractions import Fraction
+
+    def to_coef(mystr):
+        if mystr == '-':
+            return -1.0
+        elif mystr == '':
+            return 1.0
+        else:
+            return float(Fraction(mystr))
+
+    m = mystring.replace('-', '+-').replace(",", "").split('+')
+    m2 = [el.replace("(", "").replace(")", "").replace("*", "").split("SB") for el in m]
+    sbdict = {elem[1]: to_coef(elem[0]) for elem in m2 if len(elem) > 1}
+    return sbdict
+
+
+def SB_to_dict_fraction(mystring):
+    """Parse a string of SB(...) terms into a {key: Fraction coefficient} dict.
+
+    Handles fractional coefficients like 2/3 or -2/3.
+    """
+    from fractions import Fraction
+
+    def to_coef(mystr):
+        if mystr == '-':
+            return -1
+        elif mystr == '':
+            return 1
+        else:
+            return Fraction(mystr)
+
+    m = mystring.replace('-', '+-').replace(",", "").split('+')
+    m2 = [el.replace("(", "").replace(")", "").replace("*", "").split("SB") for el in m]
+    sbdict = {elem[1]: to_coef(elem[0]) for elem in m2 if len(elem) > 1}
+    return sbdict
+
+
 def FBconvert(w, name):
     """Load front/back space basis elements at weight w as a list of SB dicts."""
     mystr=''.join(str.split(readSymb(filename=name, name=name, loop=w)))
