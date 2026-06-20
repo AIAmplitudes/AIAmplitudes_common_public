@@ -311,10 +311,10 @@ def UnQuad(prefix, data=None):
         Dict mapping full symbol keys to integer coefficients.
     """
     import numpy as np
-    from aiamplitudes_common_public import Phi2Symb
 
     loop = len(prefix) // 2 + 2
     if data is None:
+        from aiamplitudes_common_public import Phi2Symb
         data = Phi2Symb(loop, "quad")
 
     # Read the 24 indep values via get24
@@ -584,10 +584,10 @@ def UnOct(prefix, data=None):
     Returns:
         Dict mapping full symbol keys to integer coefficients.
     """
-    from aiamplitudes_common_public import Phi2Symb
-
+    
     loop = len(prefix) // 2 + 4
     if data is None:
+        from aiamplitudes_common_public import Phi2Symb
         data = Phi2Symb(loop, "oct")
 
     # Read the 279 oct-lookup values via get279
@@ -629,6 +629,72 @@ def UnOctLoop(loop):
             print("aie", t)
         res.update(UnOct(t, data=data))
     return res
+
+
+def quad_to_back_labeled(quad_data):
+    """Convert quad-compressed data to back-basis labeled format.
+
+    Computes indep_values per prefix, then evaluates only the back-basis
+    suffixes (24 at weight 4) instead of all ~100+ suffixes.
+
+    Args:
+        quad_data: dict from Phi2Symb(loop, 'quad')
+
+    Returns:
+        dict mapping 'prefix@BR_4_{j}' -> coefficient
+    """
+    from aiamplitudes_common_public import bspace
+
+    br_words = list(bspace(4, 'R').values())
+
+    todo = set()
+    for d in quad_data:
+        prefix = d[:d.index('@')]
+        todo.update(DihedralEq(prefix))
+
+    labeled = {}
+    for prefix in todo:
+        indep_values = _quad_indep_values(prefix, quad_data)
+        for j, suffix in enumerate(br_words):
+            coeff = _quad_term_from_indep(indep_values, suffix, prefix[-1])
+            if coeff != 0:
+                key = prefix + f'@BR_4_{j + 1}'
+                labeled[key] = labeled.get(key, 0) + coeff
+
+    return {k: v for k, v in labeled.items() if v != 0}
+
+
+def oct_to_back_labeled(oct_data):
+    """Convert oct-compressed data to back-basis labeled format.
+
+    Computes rest_vals per prefix, then evaluates only the back-basis
+    suffixes (155 at weight 8) instead of all ~1000+ suffixes.
+
+    Args:
+        oct_data: dict from Phi2Symb(loop, 'oct')
+
+    Returns:
+        dict mapping 'prefix@BR_8_{j}' -> coefficient
+    """
+    from aiamplitudes_common_public import bspace
+
+    br_words = list(bspace(8, 'R').values())
+
+    todo = set()
+    for d in oct_data:
+        prefix = d[:d.index('@')]
+        todo.update(DihedralEq(prefix))
+
+    labeled = {}
+    for prefix in todo:
+        rest_vals = _oct_rest_vals(prefix, oct_data)
+        for j, suffix in enumerate(br_words):
+            coeff = _oct_term_from_rest_vals(rest_vals, suffix, prefix[-1])
+            if coeff != 0:
+                key = prefix + f'@BR_8_{j + 1}'
+                labeled[key] = labeled.get(key, 0) + coeff
+
+    return {k: v for k, v in labeled.items() if v != 0}
 
 
 def _oct_rest_vals(prefix, data):

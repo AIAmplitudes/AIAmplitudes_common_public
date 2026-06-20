@@ -310,14 +310,21 @@ def expand_elem(key, opt="all", loaded=None):
     if opt == "front":
         #fweight, bweight = int(elem[0].split('_')[1]), None
         myfspace=loaded["fspace"]
-        #print(elem, myfspace[elem[0]])
+        fkey = elem[0]
+        if fkey not in myfspace:
+            parts = fkey.split('_')
+            fkey = f'FPD_{parts[1]}_{parts[2]}'
         mid = ''.join(elem[1:])
-        exp_dict = {f'{k}{mid}':v for k, v in myfspace[elem[0]].items()}
+        exp_dict = {f'{k}{mid}':v for k, v in myfspace[fkey].items()}
     elif opt == "back":
         #fweight, bweight = None, int(elem[-1].split('_')[1])
         mybspace = loaded["bspace"]
         mid=''.join(elem[:-1])
-        exp_dict = {f'{mid}{k}':v for k, v in mybspace[elem[-1]].items()}
+        bkey = elem[-1]
+        if bkey not in mybspace:
+            parts = bkey.split('_')
+            bkey = f'BPD_{parts[1]}_{parts[2]}'
+        exp_dict = {f'{mid}{k}':v for k, v in mybspace[bkey].items()}
     elif opt == "all":
         #fweight, bweight = int(elem[0].split('_')[1]), int(elem[-1].split('_')[1])
         myfspace = loaded["fspace"]
@@ -331,44 +338,64 @@ def expand_elem(key, opt="all", loaded=None):
         raise ValueError
     return Symb(exp_dict)
 
-def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
-    """Pre-load F/B-space basis dicts and relations into a single dict for batch processing."""
-    loaded=dict()
-
-    if seam == 'front':
-        if fForm =='P':
-            loaded["fspace"], loaded["fspace_flip"]= get_perm_fspace(fweight)
-        elif fForm =='R':
-            loaded["fspace"], loaded["fspace_flip"]= get_rest_fspace(fweight)
-            loaded["f_rels"] = get_frels(fweight, relpath)
-        else:
-            raise ValueError
-    elif seam == 'back':
-        if bForm == 'P':
-            loaded["bspace"], loaded["bspace_flip"]= get_perm_bspace(bweight)
-        elif bForm == 'R':
-            loaded["bspace"], loaded["bspace_flip"]= get_rest_bspace(bweight)
-            loaded["b_rels"] = get_brels(bweight, relpath)
-        else:
-            raise ValueError
-    elif seam == 'all':
-        if fForm == 'P':
-            loaded["fspace"], loaded["fspace_flip"]= get_perm_fspace(fweight)
-        elif fForm == 'R':
-            loaded["fspace"], loaded["fspace_flip"]= get_rest_fspace(fweight)
-            loaded["f_rels"] = get_frels(fweight, relpath)
-        else:
-            raise ValueError
-
-        if bForm == 'P':
-            loaded["bspace"], loaded["bspace_flip"]= get_perm_bspace(bweight)
-        elif bForm == 'R':
-            loaded["bspace"], loaded["bspace_flip"]= get_rest_bspace(bweight)
-            loaded["b_rels"] = get_brels(bweight, relpath)
-        else:
-            raise ValueError
+def _load_fspace(fForm, fweight):
+    """Load front-space dict for a given form."""
+    loaded = {}
+    if fForm == 'P':
+        loaded["fspace"], loaded["fspace_flip"] = get_perm_fspace(fweight)
+    elif fForm == 'R':
+        loaded["fspace"], loaded["fspace_flip"] = get_rest_fspace(fweight)
+        loaded["f_rels"] = get_frels(fweight, relpath)
+    elif fForm == 'PD':
+        from aiamplitudes_common_dev.sewing_matrix_tools.coproduct_utils import Pdualspace
+        loaded["fspace"] = Pdualspace(fweight, 'front')
+        loaded["fspace_flip"] = None
     else:
         raise ValueError
+    return loaded
+
+
+def _load_bspace(bForm, bweight):
+    """Load back-space dict for a given form."""
+    loaded = {}
+    if bForm == 'P':
+        loaded["bspace"], loaded["bspace_flip"] = get_perm_bspace(bweight)
+    elif bForm == 'R':
+        loaded["bspace"], loaded["bspace_flip"] = get_rest_bspace(bweight)
+        loaded["b_rels"] = get_brels(bweight, relpath)
+    elif bForm == 'PD':
+        from aiamplitudes_common_dev.sewing_matrix_tools.coproduct_utils import Pdualspace
+        loaded["bspace"] = Pdualspace(bweight, 'back')
+        loaded["bspace_flip"] = None
+    else:
+        raise ValueError
+    return loaded
+
+
+_preload_cache = {}
+
+def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
+    """Pre-load F/B-space basis dicts and relations into a single dict for batch processing.
+
+    Results are cached for reuse across calls with the same arguments.
+    """
+    cache_key = (seam, fForm, fweight, bForm, bweight)
+    if cache_key in _preload_cache:
+        return _preload_cache[cache_key]
+
+    loaded = dict()
+
+    if seam == 'front':
+        loaded.update(_load_fspace(fForm, fweight))
+    elif seam == 'back':
+        loaded.update(_load_bspace(bForm, bweight))
+    elif seam == 'all':
+        loaded.update(_load_fspace(fForm, fweight))
+        loaded.update(_load_bspace(bForm, bweight))
+    else:
+        raise ValueError
+
+    _preload_cache[cache_key] = loaded
     return loaded
 
 def get_elem_compression(pattern):
@@ -392,15 +419,19 @@ def get_elem_compression(pattern):
     if 'P' in first[0] or 'R' in first[0]: fweight = int(first[1])
     if 'P' in last[0] or 'R' in last[0]: bweight = int(last[1])
 
-    if 'P' in first[0]:
+    if 'PD' in first[0]:
+        fForm = 'PD'
+    elif 'P' in first[0]:
         fForm = 'P'
     elif 'R' in first[0]:
-        fForm = 'R'
+        fForm = 'PD'
 
-    if 'P' in last[0]:
+    if 'PD' in last[0]:
+        bForm = 'PD'
+    elif 'P' in last[0]:
         bForm = 'P'
     elif 'R' in last[0]:
-        bForm = 'R'
+        bForm = 'PD'
 
     return fForm, fweight, seamsize, bForm, bweight
 
@@ -411,6 +442,29 @@ def get_compression(mySymb):
 
 def expand_symb(mySymb, opt="all"):
     """Fully expand a compressed symbol to letter-basis form."""
+    first_key = next(iter(mySymb))
+
+    if '@QUAD_' in first_key:
+        from aiamplitudes_common_public.uncompressor import UnQuad, DihedralEq
+        res = {}
+        todo = set()
+        for d in mySymb:
+            prefix = d[:d.index('@')]
+            todo.update(DihedralEq(prefix))
+        for t in todo:
+            res.update(UnQuad(t, data=mySymb))
+        return res
+    elif '@OCT_' in first_key:
+        from aiamplitudes_common_public.uncompressor import UnOct, DihedralEq
+        res = {}
+        todo = set()
+        for d in mySymb:
+            prefix = d[:d.index('@')]
+            todo.update(DihedralEq(prefix))
+        for t in todo:
+            res.update(UnOct(t, data=mySymb))
+        return res
+
     fForm, fweight, seamsize, bForm, bweight = get_compression(mySymb)
 
     if fForm ==None and bweight == None:
@@ -425,8 +479,10 @@ def expand_symb(mySymb, opt="all"):
     loaded = preload_fbspaces(opt, fForm, fweight, bForm, bweight)
     res=Symb()
     for key, val in mySymb.items():
-        res += expand_elem(key, opt, loaded)
-    return res
+        expanded = expand_elem(key, opt, loaded)
+        for w, v in expanded.items():
+            res[w] = res.get(w, 0) + val * v
+    return {k: v for k, v in res.items() if v != 0}
 
 def expand_rform_elem(key, opt="all", loaded=None):
     """Expand a restrictive-form key into individual letter components (flat list).
