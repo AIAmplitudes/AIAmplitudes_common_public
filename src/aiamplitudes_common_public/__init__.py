@@ -145,7 +145,10 @@ def fr_nzrels(w,mydir=relpath):
     return {k: v for k, v in get_frels(w, mydir, prefix=frontspace_file).items() if v != {None: 0}}
 
 def fspace(w,rp="P"):
-    """Load front-space basis dict at weight w. rp='P' for permissive, 'R' for restrictive."""
+    """Load front-space basis dict at weight w. rp='P' for permissive, 'R' for restrictive, 'PD' for dual permissive."""
+    if rp == "PD":
+        from aiamplitudes_common_dev.sewing_matrix_tools.coproduct_utils import Pdualspace
+        return Pdualspace(w, 'front')
     if w == 6 and rp == "P":
         return get_perm_fspace_wt6()
     else:
@@ -156,7 +159,10 @@ def fspace(w,rp="P"):
         else: return
 
 def bspace(w, rp="P", optrace='phi2'):
-    """Load back-space basis dict at weight w. rp='P' for permissive, 'R' for restrictive."""
+    """Load back-space basis dict at weight w. rp='P' for permissive, 'R' for restrictive, 'PD' for dual permissive."""
+    if rp == "PD":
+        from aiamplitudes_common_dev.sewing_matrix_tools.coproduct_utils import Pdualspace
+        return Pdualspace(w, 'back', optrace=optrace)
     if w>0:
         if rp == "P": return get_perm_bspace(w)[0]
         elif rp == "R": return get_rest_bspace(w, prefix=_backspace_files[optrace])[0]
