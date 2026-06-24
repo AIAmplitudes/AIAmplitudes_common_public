@@ -405,6 +405,9 @@ def get_elem_compression(pattern):
     """
     parts = pattern.split('@')
 
+    if len(parts) == 1:
+        return None, None, len(parts[0]), None, None
+
     if '_' in parts[0] and '_' in parts[-1]:
         if len(parts) == 2: seamsize = 0
         else: seamsize= len(parts[1])
