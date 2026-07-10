@@ -398,6 +398,7 @@ def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
     _preload_cache[cache_key] = loaded
     return loaded
 
+
 def get_elem_compression(pattern):
     """Detect the compression scheme from a single key string.
 
@@ -442,50 +443,6 @@ def get_compression(mySymb):
     """Detect the compression scheme of a Symb by examining its first key."""
     pattern=next(iter(mySymb))
     return get_elem_compression(pattern)
-
-def expand_symb(mySymb, opt="all"):
-    """Fully expand a compressed symbol to letter-basis form."""
-    first_key = next(iter(mySymb))
-
-    if '@QUAD_' in first_key:
-        from aiamplitudes_common_public.uncompressor import UnQuad, DihedralEq
-        res = {}
-        todo = set()
-        for d in mySymb:
-            prefix = d[:d.index('@')]
-            todo.update(DihedralEq(prefix))
-        for t in todo:
-            res.update(UnQuad(t, data=mySymb))
-        return res
-    elif '@OCT_' in first_key:
-        from aiamplitudes_common_public.uncompressor import UnOct, DihedralEq
-        res = {}
-        todo = set()
-        for d in mySymb:
-            prefix = d[:d.index('@')]
-            todo.update(DihedralEq(prefix))
-        for t in todo:
-            res.update(UnOct(t, data=mySymb))
-        return res
-
-    fForm, fweight, seamsize, bForm, bweight = get_compression(mySymb)
-
-    if fForm ==None and bweight == None:
-        print("already expanded!")
-        return mySymb
-    elif fweight==None:
-        opt = "back"
-    elif bweight==None:
-        opt = "front"
-    else: opt = opt
-
-    loaded = preload_fbspaces(opt, fForm, fweight, bForm, bweight)
-    res=Symb()
-    for key, val in mySymb.items():
-        expanded = expand_elem(key, opt, loaded)
-        for w, v in expanded.items():
-            res[w] = res.get(w, 0) + val * v
-    return {k: v for k, v in res.items() if v != 0}
 
 def expand_rform_elem(key, opt="all", loaded=None):
     """Expand a restrictive-form key into individual letter components (flat list).
@@ -532,12 +489,20 @@ def compress_rform_elem(key, fweight,bweight, seam,loaded=None):
         myb = [mybflip[''.join(key[bseam:])]]
 
     if seam == "front":
-        l = myf + [''.join(key[fseam:])]
+        suffix_parts = key[fseam:]
+        if suffix_parts and '_' in str(suffix_parts[-1]):
+            l = myf + ([''.join(suffix_parts[:-1])] if len(suffix_parts) > 1 else []) + [suffix_parts[-1]]
+        else:
+            l = myf + [''.join(suffix_parts)] if suffix_parts else myf
     elif seam == "back":
-        l = [''.join(key[:bseam])] + myb
+        prefix_parts = key[:bseam]
+        if prefix_parts and '_' in str(prefix_parts[0]):
+            l = [prefix_parts[0]] + ([''.join(prefix_parts[1:])] if len(prefix_parts) > 1 else []) + myb
+        else:
+            l = [''.join(prefix_parts)] + myb
     elif seam == "all":
         l = myf + [''.join(key[fseam:bseam])] + myb
-    return '@'.join(l)
+    return '@'.join([p for p in l if p])
 
 def get_related(rel, seed, slot):
     """Given a seed word and relation, get all related words at the given slot."""
@@ -549,6 +514,8 @@ def get_related(rel, seed, slot):
 def get_as_indepsum(fullword, fweight=None, bweight=None, seam=None,
                     loaded=None):
     """Express a non-independent term as a sum of basis (independent) terms."""
+    if isinstance(fullword, list):
+        fullword = ''.join(fullword)
     if seam == "back":
         mybflip = loaded["bspace_flip"] if loaded else get_rest_bspace(bweight)[1]
         mybrels = loaded["b_rels"] if loaded else get_brels(bweight,relpath)
@@ -636,43 +603,4 @@ def get_perm_fspace_wt6(filename='wt6_242_indep_symbols'):
             result[f'FP_6_{idx}'] = d
 
     return result
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

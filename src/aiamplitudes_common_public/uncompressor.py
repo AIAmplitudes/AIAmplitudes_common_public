@@ -15,6 +15,11 @@ Single-term lookups (UnQuadTerm, UnOctTerm) compute a single suffix value
 via dot products instead of decompressing all suffixes.
 """
 
+from aiamplitudes_common_public.fbspaces import (
+    get_compression, preload_fbspaces, get_as_indepsum, expand_elem,
+)
+from aiamplitudes_common_public.commonclasses import Symb
+
 # ── Constants ────────────────────────────────────────────────────────────────
 
 quad_bases = ["dddd", "bbbd", "bdbd", "bbdd", "dbdd", "fbdd", "dbbd", "cddd"]
@@ -765,3 +770,131 @@ def UnOctTerm(key, data=None):
         return 0
     rest_vals = _oct_rest_vals(prefix, data)
     return _oct_term_from_rest_vals(rest_vals, suffix, prefix[-1])
+
+########################################################
+# Functions to expand compressed symbol, or look up coefficient from compressed symbol
+########################################################
+
+def expand_symb(mySymb, opt="all"):
+    """Fully expand a compressed symbol to letter-basis form."""
+    first_key = next(iter(mySymb))
+
+    if '@QUAD_' in first_key:
+        from aiamplitudes_common_public.uncompressor import UnQuad, DihedralEq
+        res = {}
+        todo = set()
+        for d in mySymb:
+            prefix = d[:d.index('@')]
+            todo.update(DihedralEq(prefix))
+        for t in todo:
+            res.update(UnQuad(t, data=mySymb))
+        return res
+    elif '@OCT_' in first_key:
+        from aiamplitudes_common_public.uncompressor import UnOct, DihedralEq
+        res = {}
+        todo = set()
+        for d in mySymb:
+            prefix = d[:d.index('@')]
+            todo.update(DihedralEq(prefix))
+        for t in todo:
+            res.update(UnOct(t, data=mySymb))
+        return res
+
+    fForm, fweight, seamsize, bForm, bweight = get_compression(mySymb)
+
+    if fForm ==None and bweight == None:
+        print("already expanded!")
+        return mySymb
+    elif fweight==None:
+        opt = "back"
+    elif bweight==None:
+        opt = "front"
+    else: opt = opt
+
+    loaded = preload_fbspaces(opt, fForm, fweight, bForm, bweight)
+    res=Symb()
+    for key, val in mySymb.items():
+        expanded = expand_elem(key, opt, loaded)
+        for w, v in expanded.items():
+            res[w] = res.get(w, 0) + val * v
+    return {k: v for k, v in res.items() if v != 0}
+
+
+def get_elem_from_compressed(fullterm, symb, loaded=None):
+    """Return the coefficient of a full letter-word in a compressed symbol.
+
+    Handles full (uncompressed), quad, oct, and restrictive-form symbols.
+    """
+    first_key = next(iter(symb))
+
+    # Quad-compressed
+    if '@QUAD_' in first_key:
+        return UnQuadTerm(fullterm, data=symb)
+
+    # Oct-compressed
+    if '@OCT_' in first_key:
+        return UnOctTerm(fullterm, data=symb)
+
+    # Detect compression
+    fForm, fweight, seamsize, bForm, bweight = get_compression(symb)
+
+    # Already fully expanded
+    if fForm is None and bForm is None:
+        return symb.get(fullterm, 0)
+
+    # Restrictive-form: decompose word into basis elements
+    if fForm is not None and bForm is None:
+        seam = "front"
+    elif fForm is None and bForm is not None:
+        seam = "back"
+    else:
+        seam = "all"
+
+    if not loaded:
+        loaded = preload_fbspaces(seam, fForm, fweight, bForm, bweight)
+
+    decomp = get_as_indepsum(fullterm, fweight=fweight, bweight=bweight,
+                             seam=seam, loaded=loaded)
+
+    # Sum symb[key] * coeff over the decomposition
+    result = 0
+    for key, coeff in decomp.items():
+        result += symb.get(key, 0) * coeff
+    return result
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

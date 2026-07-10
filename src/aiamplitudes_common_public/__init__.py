@@ -12,7 +12,8 @@ form factor. Symbols are dicts mapping letter-string keys to integer coefficient
 from aiamplitudes_common_public.download_data import relpath
 from aiamplitudes_common_public.file_readers import convert,get_relpermdict
 from aiamplitudes_common_public.polynomial_utils import polynom_convert, get_runpolynomials, get_polynomialcoeffs
-from aiamplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace, expand_symb
+from aiamplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace
+from aiamplitudes_common_public.uncompressor import expand_symb
 from aiamplitudes_common_public.fbspaces import get_rest_fspace,get_rest_bspace, get_perm_fspace_wt6
 from aiamplitudes_common_public.rels_utils import alphabet,quad_prefix
 from aiamplitudes_common_public.uncompressor import UnQuad, UnQuadLoop, UnQuadTerm

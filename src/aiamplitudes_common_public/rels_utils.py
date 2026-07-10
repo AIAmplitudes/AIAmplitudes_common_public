@@ -2,7 +2,7 @@
 Relation lookup tables and utilities for scattering amplitude symbols.
 
 Defines all homogeneous linear relations that valid Phi2 symbols must satisfy:
-  - First-entry conditions: first letter cannot be d, e, or f
+#  - First-entry conditions: first letter cannot be d, e, or f
   - Double-adjacency (Steinmann): 12 forbidden ordered adjacent pairs
     {ad, da, be, eb, cf, fc, de, ed, df, fd, ef, fe}
   - Triple-adjacency: aab + abb + acb = 0 (plus dihedral images)
@@ -36,19 +36,26 @@ quad_prefix = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 steinmanns={'a':'d', 'b':'e', 'c':'f', 'd':'aef', 'e':'bdf', 'f':'cde'}
 
 #How many rels of each type to generate? (phase-1 relgen approach)
-rels_to_generate= {"first": [[500]*3,[0]*3],
-                            "double": [[500]*3,[0]*3],
-                            "triple": [[500],[1]],
-                            "dihedral": [[500],[1]],
-                            "final": [[500]*19+[500]*10,[0]*19+[1]*10],
-                            "integral": [[500]*3,[1]*3]
-                              }
+#rels_to_generate= {"first": [[500]*3,[0]*3],
+#                            "double": [[500]*3,[0]*3],
+#                            "triple": [[500],[1]],
+#                            "dihedral": [[500],[1]],
+#                            "final": [[500]*19+[500]*10,[0]*19+[1]*10],
+#                            "integral": [[500]*3,[1]*3]
+#                              }
 
-rels_to_generate_compact_default = {'first': [[500]*3, [0]*3],
-                                    'double': [[500]*3, [0]*3],
-                                    'triple': [[500], [1]],
-                                    'integral': [[500]*3, [1]*3]}
+rels_to_generate= {"initial": [[500]*21+[500]*41,[0]*21+[1]*41],
+                    "double": [[500]*3,[0]*3],
+                    "triple": [[500],[1]],
+                    "dihedral": [[500],[1]],
+                    "final": [[500]*19+[500]*14,[0]*19+[1]*14],
+                    "integral": [[500]*3,[1]*3]
+                    }
 
+#rels_to_generate_compact_default = {'first': [[500]*3, [0]*3],
+#                                    'double': [[500]*3, [0]*3],
+#                                    'triple': [[500], [1]],
+#                                    'integral': [[500]*3, [1]*3]}
 
 # Removing duplicates
 def dropdups(dicts):
@@ -81,8 +88,8 @@ pair_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
                                  {'ad':1},{'da':1},{'df':1}]
 
 ######### Localized rels #################
-# first entry condition
-first_entry_rel_table = [{'d': 1}, {'e': 1}, {'f': 1}]  # Sec 3.1 (iv)
+# first entry condition (weight-1 subset of initial_entries_rel_table)
+#first_entry_rel_table = [{'d': 1}, {'e': 1}, {'f': 1}]  # Sec 3.1 (iv) — kept for backward compat
 
 # double-adjacency condition: plus dihedral symmetry; any slot
 double_adjacency_rel_table = [{'de': 1}, {'ad': 1}, {'da': 1}]  # eq 2.19, 2.20
@@ -96,6 +103,52 @@ integral_rel_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
                       {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
                        'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,
                        'bc': -2}]  # eq 3.8 coeff (8)! Takes longest time.
+
+_final_entries_cache = None
+
+def gen_final_entries_rel_table(max_weight=4):
+    """Generate final_entries_rel_table from br_rels for weights 1 through max_weight.
+
+    Only one representative per dihedral orbit is kept (the lexicographically
+    smallest by sorted key tuple).
+    """
+    global _final_entries_cache
+    if _final_entries_cache is not None:
+        return _final_entries_cache
+
+    from aiamplitudes_common_public import br_rels
+    table = []
+    seen = set()
+    for w in range(1, max_weight + 1):
+        rels = br_rels(w)
+        for word, rel in rels.items():
+            if rel == {None: 0}:
+                entry = {word: 1}
+            else:
+                entry = {word: 1}
+                for indep, coef in rel.items():
+                    if indep is not None:
+                        entry[indep] = -coef
+
+            canon = _dihedral_canon(entry)
+            if canon not in seen:
+                seen.add(canon)
+                table.append(entry)
+
+    _final_entries_cache = table
+    return table
+
+
+def _dihedral_canon(rel_dict):
+    """Return a hashable canonical form for a relation dict under dihedral symmetry."""
+    images = []
+    for row in range(len(alphabet)):
+        image = tuple(sorted(
+            (get_image(word, row), coeff) for word, coeff in rel_dict.items()
+        ))
+        images.append(image)
+    return min(images)
+
 
 # multi-final-entries relations: plus dihedral symmetry
 # new order: one-term relations, short relations (<=4 terms), long relations (>4 terms).
@@ -120,6 +173,41 @@ final_entries_rel_table = [{'a': 1}, {'b': 1}, {'c': 1},  # eq 4.6 (idx: 0-2)
                            {'fbbd': 1, 'dbbd': -1, 'bbdd': 1, 'faff': -1 / 2, 'dbdd': 1 / 2, 'fbdd': -1 / 2,
                             'eaff': 1 / 2, 'aeee': 1 / 2, 'bfff': -1 / 2}]  # eq 4.16 (idx: 28)
 
+_initial_entries_cache = None
+
+def gen_initial_entries_rel_table(max_weight=4):
+    """Generate initial_entries_rel_table from fr_rels for weights 1 through max_weight.
+
+    Only one representative per dihedral orbit is kept (the lexicographically
+    smallest by sorted key tuple).
+    """
+    global _initial_entries_cache
+    if _initial_entries_cache is not None:
+        return _initial_entries_cache
+
+    from aiamplitudes_common_public import fr_rels
+    table = []
+    seen = set()
+    for w in range(1, max_weight + 1):
+        rels = fr_rels(w)
+        for word, rel in rels.items():
+            if rel == {None: 0}:
+                entry = {word: 1}
+            else:
+                entry = {word: 1}
+                for indep, coef in rel.items():
+                    if indep is not None:
+                        entry[indep] = -coef
+
+            canon = _dihedral_canon(entry)
+            if canon not in seen:
+                seen.add(canon)
+                table.append(entry)
+
+    _initial_entries_cache = table
+    return table
+
+
 # Multi-initial-entries relations: seeds for the dihedral expansion via
 # get_rel_table_dihedral. Each entry is one representative per dihedral orbit;
 # rotations and (when relevant) flips are generated downstream.
@@ -129,6 +217,9 @@ final_entries_rel_table = [{'a': 1}, {'b': 1}, {'c': 1},  # eq 4.6 (idx: 0-2)
 # weight-2 / weight-1 zero relations. Each weight-3 nonzero entry is annotated
 # with its multiinitial source line.
 initial_entries_rel_table = [
+    # weight-1 zero rels (first-entry condition)
+    {'d': 1}, {'e': 1}, {'f': 1},
+
     # weight-2 / weight-3 zero rels (single-term; expand dihedrally)
     {'ad': 1},
     {'aad': 1}, {'bcf': 1}, {'bde': 1}, {'bdf': 1}, {'bda': 1}, {'abd': 1},
@@ -145,8 +236,7 @@ initial_entries_rel_table = [
     {'afb': 1, 'afa': -1, 'cab': -2, 'bca': 2, 'abf': 1, 'bbf': -1},            # SB(a,f,b) = SB(a,f,a) + 2*SB(c,a,b) - 2*SB(b,c,a) - SB(a,b,f) + SB(b,b,f)
 ]
 
-nonimaged_rel_table={'first': first_entry_rel_table,
-               'double': double_adjacency_rel_table,
+nonimaged_rel_table={'double': double_adjacency_rel_table,
                'triple': triple_adjacency_rel_table,
                'integral': integral_rel_table,
                'final': final_entries_rel_table,
@@ -155,8 +245,8 @@ nonimaged_rel_table={'first': first_entry_rel_table,
 
 
 def trivial_zero_rel_table(format="full"):
-    myrel_table = first_entry_rel_table
-    slots = [0] * len(first_entry_rel_table)
+    myrel_table = initial_entries_rel_table[:3]
+    slots = [0] * 3
 
     if format == "full":
         myrel_table += final_entries_rel_table[:3]
@@ -250,10 +340,11 @@ def read_rel_info(rels_to_generate, make_zero_rels=False):
 
     rels, slots, to_gens, overlaps, relnames = [], [], [], [], []
     for rel_key, rel_info in rels_to_generate.items():
-        if rel_key == 'first':
-            myrel_table = first_entry_rel_table
-            myslot = 0
-        elif rel_key == 'initial':
+        #if rel_key == 'first':
+        #    myrel_table = initial_entries_rel_table[:3]
+        #    myslot = 0
+        #elif rel_key == 'initial':
+        if rel_key == 'initial':
             myrel_table = initial_entries_rel_table
             myslot = 0
         elif rel_key == 'double':
@@ -301,10 +392,11 @@ def read_allrel_info(rels_to_generate, make_zero_rels=False):
 
     rels, slots, to_gens, overlaps, relnames = [], [], [], [], []
     for rel_key, rel_info in rels_to_generate.items():
-        if rel_key == 'first':
-            myrel_table = dropmdups(get_rel_table_dihedral(first_entry_rel_table))
-            myslot = 0
-        elif rel_key == 'initial':
+        #if rel_key == 'first':
+        #    myrel_table = dropmdups(get_rel_table_dihedral(initial_entries_rel_table[:3]))
+        #    myslot = 0
+        #elif rel_key == 'initial':
+        if rel_key == 'initial':
             myrel_table = dropmdups(get_rel_table_dihedral(initial_entries_rel_table))
             myslot = 0
         elif rel_key == 'double':
@@ -483,7 +575,8 @@ def get_rel_terms_in_symb(symb, fraction, rel, rel_slot='any', format='full', se
     rel_terms_list: list of dicts; each item in the list is a dict in the format of
                     {word: [symb_coeff, rel_coeff]}.
     '''
-    if rel_slot not in {'first', 'initial', 'final', 'any'}: raise ValueError
+    #if rel_slot not in {'first', 'initial', 'final', 'any'}: raise ValueError
+    if rel_slot not in {'initial', 'final', 'any'}: raise ValueError
     rel_terms_list_symb = []
     all_words = list(symb.keys())
     num_words_to_pick = int(len(all_words) * fraction)
@@ -751,7 +844,7 @@ def is_trivial0(word):
     OUTPUTS:
     True/False: bool.
     '''
-    for rel in first_entry_rel_table:  # prefix rule
+    for rel in initial_entries_rel_table[:3]:  # prefix rule
         if word[0] in rel:
             return True
 
@@ -804,8 +897,7 @@ allsteinmann_rels=table_to_rels(dropmdups(get_rel_table_dihedral(double_adjacenc
 integ_rels=table_to_rels(integral_rel_table)
 allinteg_rels=table_to_rels(dropmdups(get_rel_table_dihedral(integral_rel_table)))
 
-all_rel_table={'first': dropmdups(get_rel_table_dihedral(first_entry_rel_table)),
-               'double': dropmdups(get_rel_table_dihedral(double_adjacency_rel_table)),
+all_rel_table={'double': dropmdups(get_rel_table_dihedral(double_adjacency_rel_table)),
                'triple': dropmdups(get_rel_table_dihedral(triple_table)),
                'integral': dropmdups(get_rel_table_dihedral(integral_rel_table)),
                'final': dropmdups(get_rel_table_dihedral(final_entries_rel_table)),
@@ -830,7 +922,8 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
     rel_terms_list: list of dicts; each item in the list is a dict in the format of
                     {'bbbf' (word): [16 (coeff), 1 (rel coeff)]}.
     '''
-    if rel_slot not in {'first', 'initial', 'final', 'any'}: raise ValueError
+    #if rel_slot not in {'first', 'initial', 'final', 'any'}: raise ValueError
+    if rel_slot not in {'initial', 'final', 'any'}: raise ValueError
     rel_terms_list = []
     nterm = len(rel)
     nletter = len(next(iter(rel)))  # number of letters in each term
@@ -839,25 +932,25 @@ def get_rel_terms_in_symb_per_word(word, symb, rel, rel_slot='any', format='full
         raise ValueError
 
     # first entry relation
-    if rel_slot == 'first':
-        rel_terms = {}
+    #if rel_slot == 'first':
+    #    rel_terms = {}
+    #
+    #    if format == 'full':
+    #        if word[:nletter] not in rel:
+    #            return rel_terms_list
+    #        else:
+    #            rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[:nletter]]]})
+    #            rel_terms_list.append(rel_terms)
+    #            return rel_terms_list
+    #    else:  # compact formats
+    #        if word[1:nletter] not in rel:  # ignore the prefix
+    #            return rel_terms_list
+    #        else:
+    #            rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[1:nletter]]]})
+    #            rel_terms_list.append(rel_terms)
+    #            return rel_terms_list
 
-        if format == 'full':
-            if word[:nletter] not in rel:
-                return rel_terms_list
-            else:
-                rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[:nletter]]]})
-                rel_terms_list.append(rel_terms)
-                return rel_terms_list
-        else:  # compact formats
-            if word[1:nletter] not in rel:  # ignore the prefix
-                return rel_terms_list
-            else:
-                rel_terms.update({word: [get_coeff_from_word(word, symb), rel[word[1:nletter]]]})
-                rel_terms_list.append(rel_terms)
-                return rel_terms_list
-
-    # first entry relation
+    # initial entry relation
     if rel_slot == 'initial':
         rel_terms = {}
 
