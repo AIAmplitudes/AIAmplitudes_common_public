@@ -145,6 +145,12 @@ def get_rest_bspace(w, prefix = 'phi2multifinal_E'):
     if w not in spacenames:
         raise KeyError(f"Weight {w} not available in '{prefix}' (max: {max(spacenames.keys())})")
     res=readSymb(f'{relpath}/{prefix}',str(spacenames[w]))
+    if not res.strip():
+        raise ValueError(
+            f"Weight {w} is declared in '{prefix}' (label '{spacenames[w]}') but no matching "
+            f"data block was found in the file body -- it may be stored under a different or "
+            f"compressed label (e.g. a '_G'-suffixed block)."
+        )
     myindeps = [elem for elem in re.split(r":=\[|E\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
     myd = {elem: f'BR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
     flip = {f'BR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
@@ -160,6 +166,12 @@ def get_rest_fspace(w, prefix='multiinitial_E'):
     if w not in spacenames:
         raise KeyError(f"Weight {w} not available in '{prefix}' (max: {max(spacenames.keys())})")
     res=readSymb(f'{relpath}/{prefix}',str(spacenames[w]))
+    if not res.strip():
+        raise ValueError(
+            f"Weight {w} is declared in '{prefix}' (label '{spacenames[w]}') but no matching "
+            f"data block was found in the file body -- it may be stored under a different or "
+            f"compressed label (e.g. a '_G'-suffixed block)."
+        )
     myindeps = [elem for elem in re.split(r":=\[|SB\(|\)|\]:", re.sub('[, *]', '', res))[1:] if elem]
     myd = {elem: f'FR_{w}_{i+1}' for i, elem in enumerate(myindeps)}
     flip = {f'FR_{w}_{i+1}': elem for i, elem in enumerate(myindeps)}
@@ -171,6 +183,12 @@ def getBrel_eqs(f, w, prefix='phi2multifinal_E'):
     if w not in relnames:
         raise KeyError(f"Weight {w} not available in '{prefix}' (max: {max(relnames.keys())})")
     res = readFile(f, str(relnames[w]) + ' :=')
+    if not res.strip():
+        raise ValueError(
+            f"Weight {w} is declared in '{prefix}' (label '{relnames[w]}') but no matching "
+            f"relation block was found in the file body -- it may be stored under a different "
+            f"or compressed label."
+        )
     out = _parse_rel_block(res)
     out = _resolve_ops(out, f)
     return out
@@ -207,6 +225,9 @@ def _resolve_ops(elems, f):
             ref_name = m.group(1)
             f.seek(0)
             ref_res = readFile(f, ref_name + ' :=')
+            if not ref_res.strip():
+                raise ValueError(f"op({ref_name}) reference could not be resolved -- "
+                                  f"no block labeled '{ref_name}' found in the file body.")
             out.extend(_parse_rel_block(ref_res))
         else:
             out.append(elem)
@@ -225,11 +246,22 @@ def getFrel_eqs(f, w, prefix='multiinitial_E'):
         res_zero = readFile(f, zeros + ' :=')
         f.seek(0)
         res_nonzero = readFile(f, nonzeros + ' :=')
+        if not res_zero.strip() or not res_nonzero.strip():
+            raise ValueError(
+                f"Weight {w} split relation blocks ('{zeros}'/'{nonzeros}') not both found in "
+                f"'{prefix}' -- one or both blocks are missing from the file body."
+            )
         out_zero = _parse_rel_block(res_zero)
         out_nonzero = _parse_rel_block(res_nonzero)
         out = _resolve_ops(out_zero + out_nonzero, f)
     else:
         res = readFile(f, str(relnames[w]) + ' :=')
+        if not res.strip():
+            raise ValueError(
+                f"Weight {w} is declared in '{prefix}' (label '{relnames[w]}') but no matching "
+                f"relation block was found in the file body -- it may be stored under a "
+                f"different or compressed label."
+            )
         out = _parse_rel_block(res)
         out = _resolve_ops(out, f)
     return out
