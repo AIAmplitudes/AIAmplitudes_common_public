@@ -69,6 +69,49 @@ def dropmdups(dicts):
         return {k:(int(elem) if (elem := v/firstval).is_integer() else elem) for k,v in dict.items()}
     return dropdups([normalize(dict) for dict in dicts])
 
+def drop_lindep(rel_pairs):
+    """Keep only a maximal linearly independent subset of (label, rel_dict) pairs.
+
+    dropmdups only removes exact duplicates and scalar multiples; some dihedral
+    closures still contain relations that are non-trivial linear combinations of
+    others (e.g. integral_rel_table's closure has dropmdups-count 6 but true
+    rank 3). This does exact sparse Gaussian elimination over the rationals to
+    catch those too.
+
+    This is the canonical exact-rational dependency reducer for the AIAmplitudes
+    project; aiamplitudes_common_dev.sewing_matrix_tools.gen_homog_sewchecks
+    imports and uses this directly for its "exact" dedup method.
+    """
+    from fractions import Fraction
+
+    pivots = {}  # pivot_key -> normalized row (pivot_row[pivot_key] == 1)
+    kept = []
+    for label, rel in rel_pairs:
+        row = {k: Fraction(v) for k, v in rel.items() if Fraction(v) != 0}
+        for pivot_key, pivot_row in pivots.items():
+            if pivot_key not in row:
+                continue
+            coef = row.pop(pivot_key)
+            for k, v in pivot_row.items():
+                if k == pivot_key:
+                    continue
+                newv = row.get(k, Fraction(0)) - coef * v
+                if newv == 0:
+                    row.pop(k, None)
+                else:
+                    row[k] = newv
+        if not row:
+            continue
+        pivot_key = next(iter(row))
+        pivot_val = row[pivot_key]
+        pivots[pivot_key] = {k: v / pivot_val for k, v in row.items()}
+        kept.append((label, rel))
+    return kept
+
+def drop_lindep_dicts(dicts):
+    """drop_lindep for plain relation dicts (no labels), returning the kept dicts."""
+    return [rel for _, rel in drop_lindep(enumerate(dicts))]
+
 ##############################################################################################
 # HOMOGENOUS LINEAR RELATIONS LOOK-UP TABLES#
 ##############################################################################################
@@ -81,11 +124,10 @@ dihedral_table = [list(permutations(alphabet[:3]))[i]+list(permutations(alphabet
 cycle_table = [dihedral_table[i] for i in [0, 3, 4]]
 flip_table = [dihedral_table[i] for i in [0, 1, 2, 5]]
 triple_table = [{'aab': 1, 'abb': 1, 'acb': 1}]
-pair_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
-                              {'ca': 1, 'cb': 1, 'ac': -1, 'bc': -1},  # eq 3.7
-                              {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
-                               'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,'bc': -2},
-                                 {'ad':1},{'da':1},{'df':1}]
+pair_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6 (eq 3.7 is its dihedral image, omitted)
+                {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
+                    'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,'bc': -2},
+                {'ad':1},{'da':1},{'df':1}]
 
 ######### Localized rels #################
 # first entry condition (weight-1 subset of initial_entries_rel_table)
@@ -98,8 +140,7 @@ double_adjacency_rel_table = [{'de': 1}, {'ad': 1}, {'da': 1}]  # eq 2.19, 2.20
 triple_adjacency_rel_table = [{'aab': 1, 'abb': 1, 'acb': 1}]  # eq 2.21
 
 # integrability relations: any slot
-integral_rel_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6
-                      {'ca': 1, 'cb': 1, 'ac': -1, 'bc': -1},  # eq 3.7
+integral_rel_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6 (eq 3.7 is its dihedral image, omitted)
                       {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
                        'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,
                        'bc': -2}]  # eq 3.8 coeff (8)! Takes longest time.
@@ -889,17 +930,17 @@ def get_rel_table_dihedral(rel_table):
 
 ######################################################
 pair_rels=table_to_rels(pair_table)
-allpair_rels=table_to_rels(dropmdups(get_rel_table_dihedral(pair_table)))
+allpair_rels=drop_lindep_dicts(table_to_rels(dropmdups(get_rel_table_dihedral(pair_table))))
 triple_rels=table_to_rels(triple_table)
-alltriple_rels=table_to_rels(dropmdups(get_rel_table_dihedral(triple_table)))
+alltriple_rels=drop_lindep_dicts(table_to_rels(dropmdups(get_rel_table_dihedral(triple_table))))
 steinmann_rels=table_to_rels(double_adjacency_rel_table)
-allsteinmann_rels=table_to_rels(dropmdups(get_rel_table_dihedral(double_adjacency_rel_table)))
+allsteinmann_rels=drop_lindep_dicts(table_to_rels(dropmdups(get_rel_table_dihedral(double_adjacency_rel_table))))
 integ_rels=table_to_rels(integral_rel_table)
-allinteg_rels=table_to_rels(dropmdups(get_rel_table_dihedral(integral_rel_table)))
+allinteg_rels=drop_lindep_dicts(table_to_rels(dropmdups(get_rel_table_dihedral(integral_rel_table))))
 
-all_rel_table={'double': dropmdups(get_rel_table_dihedral(double_adjacency_rel_table)),
-               'triple': dropmdups(get_rel_table_dihedral(triple_table)),
-               'integral': dropmdups(get_rel_table_dihedral(integral_rel_table)),
+all_rel_table={'double': drop_lindep_dicts(dropmdups(get_rel_table_dihedral(double_adjacency_rel_table))),
+               'triple': drop_lindep_dicts(dropmdups(get_rel_table_dihedral(triple_table))),
+               'integral': drop_lindep_dicts(dropmdups(get_rel_table_dihedral(integral_rel_table))),
                'final': dropmdups(get_rel_table_dihedral(final_entries_rel_table)),
                'initial': dropmdups(get_rel_table_dihedral(initial_entries_rel_table))}
 
