@@ -636,67 +636,87 @@ def UnOctLoop(loop):
     return res
 
 
-def quad_to_back_labeled(quad_data):
+def quad_to_back_labeled(quad_data, targets=None):
     """Convert quad-compressed data to back-basis labeled format.
 
     Computes indep_values per prefix, then evaluates only the back-basis
     suffixes (24 at weight 4) instead of all ~100+ suffixes.
 
     Args:
-        quad_data: dict from Phi2Symb(loop, 'quad')
+        quad_data: dict from Phi2Symb(loop, 'quad').
+        targets: Optional mapping ``prefix -> iterable of BR_4 names``.  When
+            supplied, evaluate only those requested prefix/back coordinates.
+            The default preserves the exhaustive historical behavior.
 
     Returns:
         dict mapping 'prefix@BR_4_{j}' -> coefficient
     """
     from aiamplitudes_common_public import bspace
 
-    br_words = list(bspace(4, 'R').values())
-
-    todo = set()
-    for d in quad_data:
-        prefix = d[:d.index('@')]
-        todo.update(DihedralEq(prefix))
+    br_space = bspace(4, 'R')
+    if targets is None:
+        todo = set()
+        for d in quad_data:
+            prefix = d[:d.index('@')]
+            todo.update(DihedralEq(prefix))
+        requested = {prefix: br_space for prefix in todo}
+    else:
+        requested = {
+            prefix: tuple(dict.fromkeys(back_names))
+            for prefix, back_names in targets.items()
+        }
 
     labeled = {}
-    for prefix in todo:
+    for prefix, back_names in requested.items():
         indep_values = _quad_indep_values(prefix, quad_data)
-        for j, suffix in enumerate(br_words):
+        for back_name in back_names:
+            suffix = br_space[back_name]
             coeff = _quad_term_from_indep(indep_values, suffix, prefix[-1])
             if coeff != 0:
-                key = prefix + f'@BR_4_{j + 1}'
+                key = prefix + '@' + back_name
                 labeled[key] = labeled.get(key, 0) + coeff
 
     return {k: v for k, v in labeled.items() if v != 0}
 
 
-def oct_to_back_labeled(oct_data):
+def oct_to_back_labeled(oct_data, targets=None):
     """Convert oct-compressed data to back-basis labeled format.
 
     Computes rest_vals per prefix, then evaluates only the back-basis
     suffixes (155 at weight 8) instead of all ~1000+ suffixes.
 
     Args:
-        oct_data: dict from Phi2Symb(loop, 'oct')
+        oct_data: dict from Phi2Symb(loop, 'oct').
+        targets: Optional mapping ``prefix -> iterable of BR_8 names``.  When
+            supplied, evaluate only those requested prefix/back coordinates.
+            The default preserves the exhaustive historical behavior.
 
     Returns:
         dict mapping 'prefix@BR_8_{j}' -> coefficient
     """
     from aiamplitudes_common_public import bspace
 
-    br_words = list(bspace(8, 'R').values())
-
-    todo = set()
-    for d in oct_data:
-        prefix = d[:d.index('@')]
-        todo.update(DihedralEq(prefix))
+    br_space = bspace(8, 'R')
+    if targets is None:
+        todo = set()
+        for d in oct_data:
+            prefix = d[:d.index('@')]
+            todo.update(DihedralEq(prefix))
+        requested = {prefix: br_space for prefix in todo}
+    else:
+        requested = {
+            prefix: tuple(dict.fromkeys(back_names))
+            for prefix, back_names in targets.items()
+        }
 
     labeled = {}
-    for prefix in todo:
+    for prefix, back_names in requested.items():
         rest_vals = _oct_rest_vals(prefix, oct_data)
-        for j, suffix in enumerate(br_words):
+        for back_name in back_names:
+            suffix = br_space[back_name]
             coeff = _oct_term_from_rest_vals(rest_vals, suffix, prefix[-1])
             if coeff != 0:
-                key = prefix + f'@BR_8_{j + 1}'
+                key = prefix + '@' + back_name
                 labeled[key] = labeled.get(key, 0) + coeff
 
     return {k: v for k, v in labeled.items() if v != 0}
@@ -861,8 +881,6 @@ def get_elem_from_compressed(fullterm, symb, loaded=None):
     for key, coeff in decomp.items():
         result += symb.get(key, 0) * coeff
     return result
-
-
 
 
 
