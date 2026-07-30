@@ -28,7 +28,7 @@ from aiamplitudes_common_public.commonclasses import Symb
 from aiamplitudes_common_public.file_readers import readSymb, readFile, SB_to_dict, SB_to_dict_fraction
 from aiamplitudes_common_public.download_data import relpath
 
-B_number= [1, 3, 6, 12, 24, 45, 85, 155, 279, None ] # dim of back space at each weight
+B_number= [1, 3, 6, 12, 24, 45, 85, 155, 279, 490 ] # dim of back space at each weight
 F_number= [1, 3, 9, 21, 48, 108, 246, 555, 1251, None ] # dim of front space at each weight
 
 NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, None ] # number of back-space relations
