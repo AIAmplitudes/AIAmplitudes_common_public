@@ -127,7 +127,7 @@ triple_table = [{'aab': 1, 'abb': 1, 'acb': 1}]
 pair_table = [{'ab': 1, 'ac': 1, 'ba': -1, 'ca': -1},  # eq 3.6 (eq 3.7 is its dihedral image, omitted)
                 {'db': 1, 'dc': -1, 'bd': -1, 'cd': 1, 'ec': 1, 'ea': -1, 'ce': -1,
                     'ae': 1, 'fa': 1, 'fb': -1, 'af': -1, 'bf': 1, 'cb': 2,'bc': -2},
-                {'ad':1},{'da':1},{'df':1}]
+                {'ad':1},{'da':1},{'de':1}]
 
 ######### Localized rels #################
 # first entry condition (weight-1 subset of initial_entries_rel_table)

@@ -795,7 +795,7 @@ def UnOctTerm(key, data=None):
 # Functions to expand compressed symbol, or look up coefficient from compressed symbol
 ########################################################
 
-def expand_symb(mySymb, opt="all"):
+def expand_symb(mySymb, opt="all", optrace="phi2"):
     """Fully expand a compressed symbol to letter-basis form."""
     first_key = next(iter(mySymb))
 
@@ -831,7 +831,9 @@ def expand_symb(mySymb, opt="all"):
         opt = "front"
     else: opt = opt
 
-    loaded = preload_fbspaces(opt, fForm, fweight, bForm, bweight)
+    loaded = preload_fbspaces(
+        opt, fForm, fweight, bForm, bweight, optrace=optrace
+    )
     res=Symb()
     for key, val in mySymb.items():
         expanded = expand_elem(key, opt, loaded)
@@ -840,7 +842,7 @@ def expand_symb(mySymb, opt="all"):
     return {k: v for k, v in res.items() if v != 0}
 
 
-def get_elem_from_compressed(fullterm, symb, loaded=None):
+def get_elem_from_compressed(fullterm, symb, loaded=None, optrace="phi2"):
     """Return the coefficient of a full letter-word in a compressed symbol.
 
     Handles full (uncompressed), quad, oct, and restrictive-form symbols.
@@ -871,7 +873,9 @@ def get_elem_from_compressed(fullterm, symb, loaded=None):
         seam = "all"
 
     if not loaded:
-        loaded = preload_fbspaces(seam, fForm, fweight, bForm, bweight)
+        loaded = preload_fbspaces(
+            seam, fForm, fweight, bForm, bweight, optrace=optrace
+        )
 
     decomp = get_as_indepsum(fullterm, fweight=fweight, bweight=bweight,
                              seam=seam, loaded=loaded)
@@ -881,7 +885,6 @@ def get_elem_from_compressed(fullterm, symb, loaded=None):
     for key, coeff in decomp.items():
         result += symb.get(key, 0) * coeff
     return result
-
 
 
 

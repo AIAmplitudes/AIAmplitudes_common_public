@@ -109,9 +109,89 @@ def br_rels(w, optrace='phi2', mydir=relpath):
     """Load back-space (restrictive) relations at weight w."""
     return get_brels(w, mydir, prefix=_backspace_files[optrace])
 
+def _br_referenced_indeps(w, optrace='phi2', mydir=relpath):
+    """Return the letter words used on the right-hand side of ``br_rels``."""
+    return {
+        word
+        for expansion in br_rels(w, optrace, mydir).values()
+        for word in expansion
+        if word is not None
+    }
+
+def br_mand(w, optrace='phi2', mydir=relpath):
+    """Return mandatory restrictive back-space elements at weight w.
+
+    The result is a ``{BR_name: letter_word}`` dict. Mandatory elements are
+    basis representatives that do not occur on the right-hand side of any
+    back-space relation.
+    """
+    referenced = _br_referenced_indeps(w, optrace, mydir)
+    return {
+        name: word
+        for name, word in bspace(w, "R", optrace=optrace).items()
+        if word not in referenced
+    }
+
+def br_indep(w, optrace='phi2', mydir=relpath):
+    """Return referenced independent restrictive back-space elements at weight w.
+
+    The result is a ``{BR_name: letter_word}`` dict containing the basis
+    representatives that occur on the right-hand side of ``br_rels(w)``.
+    """
+    referenced = _br_referenced_indeps(w, optrace, mydir)
+    return {
+        name: word
+        for name, word in bspace(w, "R", optrace=optrace).items()
+        if word in referenced
+    }
+
+def br_dep(w, optrace='phi2', mydir=relpath):
+    """Return dependent back-space elements and their expansions at weight w.
+
+    This has the same ``{dependent_word: {independent_word: coefficient}}``
+    representation as ``br_rels(w)`` and includes relations that vanish.
+    """
+    return br_rels(w, optrace, mydir)
+
 def fr_rels(w,mydir=relpath):
     """Load front-space (restrictive) relations at weight w."""
     return get_frels(w,mydir, prefix=frontspace_file)
+
+def _fr_referenced_indeps(w, mydir=relpath):
+    """Return the letter words used on the right-hand side of ``fr_rels``."""
+    return {
+        word
+        for expansion in fr_rels(w, mydir).values()
+        for word in expansion
+        if word is not None
+    }
+
+def fr_mand(w, mydir=relpath):
+    """Return mandatory restrictive front-space elements at weight w.
+
+    The result is a ``{FR_name: letter_word}`` dict.  Mandatory elements are
+    basis representatives that do not occur on the right-hand side of any
+    front-space relation.
+    """
+    referenced = _fr_referenced_indeps(w, mydir)
+    return {name: word for name, word in fspace(w, "R").items() if word not in referenced}
+
+def fr_indep(w, mydir=relpath):
+    """Return referenced independent restrictive front-space elements at weight w.
+
+    The result is a ``{FR_name: letter_word}`` dict containing the basis
+    representatives that occur on the right-hand side of ``fr_rels(w)``.
+    """
+    referenced = _fr_referenced_indeps(w, mydir)
+    return {name: word for name, word in fspace(w, "R").items() if word in referenced}
+
+def fr_dep(w, mydir=relpath):
+    """Return dependent front-space elements and their expansions at weight w.
+
+    This has the same ``{dependent_word: {independent_word: coefficient}}``
+    representation as ``fr_rels(w)`` and includes relations that vanish.
+    """
+    return fr_rels(w, mydir)
 
 def fp_1l_rels(w,mydir=relpath):
     """Load front-space permissive 1-letter coproduct relations at weight w."""
@@ -181,5 +261,3 @@ def bspace_flip(w, rp="P", optrace='phi2'):
     if rp == "P": return get_perm_bspace(w)[1]
     elif rp == "R": return get_rest_bspace(w, prefix=_backspace_files[optrace])[1]
     else: return
-
-

@@ -14,7 +14,7 @@ Each basis has a forward dict (name -> letter expansion) and a flip dict
 
 Dimension tables (indexed by weight 0-8):
   B_number (back):  [1, 3, 6, 12, 24, 45, 85, 155, 279]
-  F_number (front): [1, 3, 9, 21, 48, 108, 246, 555, 1251]
+  F_number (front): [1, 3, 9, 21, 48, 108, 242, 540, 1212]
 
 Also provides symbol expansion/compression and relation lookup functions
 that are shared by both common_public and common_dev.
@@ -29,10 +29,10 @@ from aiamplitudes_common_public.file_readers import readSymb, readFile, SB_to_di
 from aiamplitudes_common_public.download_data import relpath
 
 B_number= [1, 3, 6, 12, 24, 45, 85, 155, 279, 490 ] # dim of back space at each weight
-F_number= [1, 3, 9, 21, 48, 108, 246, 555, 1251, None ] # dim of front space at each weight
+F_number= [1, 3, 9, 21, 48, 108, 242, 540, 1212, None ] # dim of front space at each weight
 
 NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, None ] # number of back-space relations
-NF_rels= [0, 3, 9, 33, 78, 180, 402, 921, 2079, None] # number of front-space relations
+NF_rels= [0, 3, 9, 33, 78, 180, 406, 912, 2079, None] # number of front-space relations
 
 _header_cache = {}
 
@@ -379,25 +379,27 @@ def _load_fspace(fForm, fweight):
         loaded["fspace"], loaded["fspace_flip"] = get_rest_fspace(fweight)
         loaded["f_rels"] = get_frels(fweight, relpath)
     elif fForm == 'PD':
-        from aiamplitudes_common_dev.sewing_matrix_tools.coproduct_utils import Pdualspace
-        loaded["fspace"] = Pdualspace(fweight, 'front')
+        from aiamplitudes_common_public import fspace
+        loaded["fspace"] = fspace(fweight, 'PD')
         loaded["fspace_flip"] = None
     else:
         raise ValueError
     return loaded
 
 
-def _load_bspace(bForm, bweight):
+def _load_bspace(bForm, bweight, optrace='phi2'):
     """Load back-space dict for a given form."""
     loaded = {}
     if bForm == 'P':
         loaded["bspace"], loaded["bspace_flip"] = get_perm_bspace(bweight)
     elif bForm == 'R':
-        loaded["bspace"], loaded["bspace_flip"] = get_rest_bspace(bweight)
-        loaded["b_rels"] = get_brels(bweight, relpath)
+        from aiamplitudes_common_public import bspace, bspace_flip, br_rels
+        loaded["bspace"] = bspace(bweight, 'R', optrace=optrace)
+        loaded["bspace_flip"] = bspace_flip(bweight, 'R', optrace=optrace)
+        loaded["b_rels"] = br_rels(bweight, optrace=optrace)
     elif bForm == 'PD':
-        from aiamplitudes_common_dev.sewing_matrix_tools.coproduct_utils import Pdualspace
-        loaded["bspace"] = Pdualspace(bweight, 'back')
+        from aiamplitudes_common_public import bspace
+        loaded["bspace"] = bspace(bweight, 'PD', optrace=optrace)
         loaded["bspace_flip"] = None
     else:
         raise ValueError
@@ -406,12 +408,12 @@ def _load_bspace(bForm, bweight):
 
 _preload_cache = {}
 
-def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
+def preload_fbspaces(seam, fForm, fweight, bForm, bweight, optrace='phi2'):
     """Pre-load F/B-space basis dicts and relations into a single dict for batch processing.
 
     Results are cached for reuse across calls with the same arguments.
     """
-    cache_key = (seam, fForm, fweight, bForm, bweight)
+    cache_key = (seam, fForm, fweight, bForm, bweight, optrace)
     if cache_key in _preload_cache:
         return _preload_cache[cache_key]
 
@@ -420,10 +422,10 @@ def preload_fbspaces(seam, fForm, fweight, bForm, bweight):
     if seam == 'front':
         loaded.update(_load_fspace(fForm, fweight))
     elif seam == 'back':
-        loaded.update(_load_bspace(bForm, bweight))
+        loaded.update(_load_bspace(bForm, bweight, optrace=optrace))
     elif seam == 'all':
         loaded.update(_load_fspace(fForm, fweight))
-        loaded.update(_load_bspace(bForm, bweight))
+        loaded.update(_load_bspace(bForm, bweight, optrace=optrace))
     else:
         raise ValueError
 
@@ -635,4 +637,3 @@ def get_perm_fspace_wt6(filename='wt6_242_indep_symbols'):
             result[f'FP_6_{idx}'] = d
 
     return result
-
