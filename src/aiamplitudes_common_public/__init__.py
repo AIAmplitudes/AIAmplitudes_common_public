@@ -10,7 +10,7 @@ form factor. Symbols are dicts mapping letter-string keys to integer coefficient
 """
 
 from aiamplitudes_common_public.download_data import relpath
-from aiamplitudes_common_public.file_readers import convert,get_relpermdict
+from aiamplitudes_common_public.file_readers import convert,convert_phi3_L6,get_relpermdict
 from aiamplitudes_common_public.polynomial_utils import polynom_convert, get_runpolynomials, get_polynomialcoeffs
 from aiamplitudes_common_public.fbspaces import get_frels,get_brels,get_perm_fspace,get_perm_bspace
 from aiamplitudes_common_public.uncompressor import expand_symb
@@ -84,9 +84,9 @@ def Phi2Symb(L, type=None, uncompress = True):
 def Phi3Symb(L):
     """Load the Phi3 (tr(F^3)) form factor symbol at loop order L (1-6)."""
     if L==6:
-        symb = convert(f'{relpath}/EE33_6_symb_new_norm', L)
+        symb = convert_phi3_L6(f'{relpath}/EE33_6_symb_new_norm')
     else:
-        symb  = convert(f'{relpath}/EE33_symb_new_norm',L)
+        symb  = convert(f'{relpath}/EE33_symb_new_norm', L, prefix='EE33_symb_new_norm')
     return symb
 
 def Phi2Symbs():
