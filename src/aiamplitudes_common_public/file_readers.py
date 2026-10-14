@@ -19,13 +19,15 @@ from aiamplitudes_common_public.download_data import _cache_path
 from aiamplitudes_common_public.download_data import download_all
 from fractions import Fraction
 
-def convert(filename, loop=None, reptype=None):
+def convert(filename, loop=None, reptype=None, prefix='Esymb'):
     """Parse a symbol data file into a {key: coefficient} dict.
 
     Args:
         filename: Path to the symbol file.
         loop: Loop order L (determines which block to read).
         reptype: 'quad', 'oct', or None for full format.
+        prefix: Block name for the full format, e.g. 'Esymb' (Phi2) or
+                'EE33_symb_new_norm' (Phi3). The block read is prefix[loop].
     """
     if reptype in {"oct","quad"}:
         if reptype== "oct":
@@ -46,17 +48,42 @@ def convert(filename, loop=None, reptype=None):
         if len(dev[-1]) == 0: dev = dev[:-1]
     else:
         dev = re.split(":=|SB\(|\)", re.sub('[,*]', '',
-                                            readSymb(filename, 'Esymb', loop)))[1:-1]
+                                            readSymb(filename, prefix, loop)))[1:-1]
     keys = dev[1::2]
-    values = [int(re.sub('[+-]$', t[0] + '1', t)) for t in dev[0::2]]
+    # A block may start with a bare SB(...) term, whose coefficient string is empty.
+    values = [int(re.sub('[+-]$', t[0] + '1', t)) if t else 1 for t in dev[0::2]]
     out_dict = {k:v for k, v in zip(keys, values)}
 
+    return out_dict
+
+def convert_phi3_L6(filename):
+    """Parse the 6-loop Phi3 symbol file into a {key: coefficient} dict.
+
+    The file only stores the double coproducts [x,a] (blocks
+    EE33_6_symb_new_norm[x,a], words of weight 10 that are followed by x,a).
+    Words ending in b and c are recovered from the cyclic symmetry
+    a -> b -> c -> a, d -> e -> f -> d of the symbol.
+    """
+    cycle = str.maketrans('abcdef', 'bcaefd')
+    out_dict = {}
+    for x in 'abcdef':
+        base = readSymb(filename, 'EE33_6_symb_new_norm', f'{x},a')
+        dev = re.split(r":=|SB\(|\)", re.sub('[,* ]', '', base))[1:-1]
+        for word, coef in zip(dev[1::2], dev[0::2]):
+            if not word:
+                continue
+            word = word + x + 'a'
+            value = int(re.sub('[+-]$', coef[0] + '1', coef)) if coef else 1
+            for _ in range(3):
+                out_dict[word] = value
+                word = word.translate(cycle)
     return out_dict
 
 def readSymb(filename, prefix, loop=None):
     """Read a named symbol block from a file. Returns the raw string content."""
     assert os.path.isfile(filename)
     assert ('indep' in prefix) or (prefix in {'Esymb', 'Eaef', 'Eae', 'Esymbquad', 'Esymboct',
+                      'EE33_symb_new_norm', 'EE33_6_symb_new_norm',
                       'frontspace', 'backspace','all7_new_common_factor', 'all7_sub_set', 'all6abc_list'})
     if not (('indep' in prefix) or (prefix in {'all7_new_common_factor', 'all7_sub_set', 'all6abc_list'})):
         mypref=prefix + '[' + str(loop) + ']'
