@@ -1,26 +1,72 @@
 # aiamplitudes_common_public
-Common public utils library for the "AI for Scattering Amplitudes" project, located at: https://github.com/AIAmplitudes/AIAmplitudes_common_public/
 
-src/
-__init__.py- import-level objects and functions. These include the Phi2 and Phi3 symbols, the front and back spaces and relations in various weights and formats, run-polynomials, and their coeffs.
-For example use-cases, please explore the Amplitudes_101 jupyter notebook!
+Shared utilities for the AI for Scattering Amplitudes project: Phi2/Phi3
+symbols, front and back bases, relations, and d-ray polynomials.
 
-download_data.py - contains the scripts to download a (compressed) version of the data files. Call download_all(DATA_DIR_NAME) to download the files.
-This is needed to load the symbols, etc., but does not need to be called often! To download the data in the "public" repo rather than the "Phase 1" repo, 
-you will need to generate a github access token that has read access from the "data_public" repo and pass it to download_all(). 
-Note that some functions involving front/back spaces etc. involve files that have not yet been made public, so this is necessary in order to explore the 
-full functionality of the amplitudes package.
+For usage examples, see `notebook/Amplitudes_101.ipynb` in the companion
+`AIAmplitudes_common_dev` repository.
 
-file_readers.py - functions to read the files. convert() is a multipurpose function that is called often, while the others are more specialized to different cases.
-Most of these are called within functions and should not need to be called by the typical user.
+## Data
 
-fbspaces.py - Utils for the front and back spaces. This includes coproducts, lookups, etc.
+Data files are stored in `~/.local/AIAmplitudesData/` by default. To download
+the public dataset into an empty data directory:
 
-rels_utils.py- Table of homogeneous relations (as defined in the "Bootstrapping a Stress Tensor..." paper), relation eval functions, etc.- this is called often!
+```python
+from aiamplitudes_common_public.download_data import download_all_public
 
-commonclasses.py - Common wrappers used for generating and processing relation-instances.
+download_all_public()
+```
 
-polynomial_utils.py - functions related to analysis of the "d-ray" polynomials mentioned in the "Recurrent Features of Amplitudes..." paper.
+Some basis files require access to `AIAmplitudes/data_public`. Use
+`download_all_private(username, token)` from the same module with a GitHub
+token that has read access to that repository.
 
-notebook/
-Amplitudes_101.ipynb- a notebook that displays some simple exploratory data analysis functions of this package.
+## Bases and cached counts
+
+Select compatible basis files by name in the data directory or by absolute
+path. Use `"R"` for restrictive bases, `"P"` for permissive bases, and `"PD"`
+for permissive bases dual to the restrictive basis. `"PD"` requires the
+companion `aiamplitudes_common_dev` package.
+
+```python
+import aiamplitudes_common_public as amp
+from aiamplitudes_common_public.fbspaces import (
+    F_number, B_number, NF_rels, NB_rels,
+)
+
+amp.configure_basis(front_rest="multiinitial_E", back_rest="phi2multifinal_E")
+front = amp.fspace(3, "R")
+back = amp.bspace(3, "R")
+
+n_front, n_back = F_number[3], B_number[3]
+n_front_relations, n_back_relations = NF_rels[3], NB_rels[3]
+```
+
+Dimensions and relation counts come from the selected data and are cached on
+first load. Repeated queries reuse them without rereading or recounting.
+Available weights depend on the files. Relation counts include zero relations
+and count stored entries, rather than matrix rank.
+
+- `fr_rels(w)` and `br_rels(w)` load the cached relation dictionaries.
+- `basis_size(...)` and `relation_count(...)` support explicit queries with
+  `prefix=` for another file or `optrace="phi3"` for the Phi3 back space.
+- `configure_basis` also accepts `front_perm` and `back_perm`;
+  `F_perm_number[w]` and `B_perm_number[w]` expose their dimensions.
+- Changing the selection clears basis-dependent caches. After editing a file
+  in place, call `amp.clear_basis_cache()`. Treat cached dictionaries as read-only.
+
+Switching files does not transform existing symbols or sewing matrices.
+Reload previously loaded basis and sewing dictionaries after a switch.
+
+## Main modules
+
+All modules are under `src/aiamplitudes_common_public/`.
+
+| Module | Purpose |
+| --- | --- |
+| `__init__.py` | Public loaders for symbols, bases, relations, and polynomials |
+| `download_data.py`, `file_readers.py` | Download and parse data files |
+| `fbspaces.py` | Front/back spaces, lookups, and cached counts |
+| `rels_utils.py`, `commonclasses.py` | Homogeneous relations from *Bootstrapping a Stress Tensor...*, relation evaluation, and wrappers |
+| `polynomial_utils.py` | d-ray polynomial utilities discussed in *Recurrent Features of Amplitudes...* |
+| `lazy_symbol.py`, `uncompressor.py` | Lazy symbol access and decompression |

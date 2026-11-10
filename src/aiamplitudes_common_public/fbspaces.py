@@ -12,9 +12,10 @@ elements using the physics relations. Two representations are supported:
 Each basis has a forward dict (name -> letter expansion) and a flip dict
 (letter string -> name) for bidirectional lookup.
 
-Dimension tables (indexed by weight 0-8):
-  B_number (back):  [1, 3, 6, 12, 24, 45, 85, 155, 279]
-  F_number (front): [1, 3, 9, 21, 48, 108, 242, 540, 1212]
+Dimensions are read from the selected basis and cached on first load.
+F_number[w] and B_number[w] expose the restrictive dimensions;
+F_perm_number[w] and B_perm_number[w] expose the permissive dimensions.
+NF_rels[w] and NB_rels[w] similarly expose cached restrictive relation counts.
 
 Also provides symbol expansion/compression and relation lookup functions
 that are shared by both common_public and common_dev.
@@ -23,26 +24,93 @@ that are shared by both common_public and common_dev.
 import re
 import os
 from fractions import Fraction
+from numbers import Integral
 from collections import Counter
 from aiamplitudes_common_public.commonclasses import Symb
 from aiamplitudes_common_public.file_readers import readSymb, readFile, SB_to_dict, SB_to_dict_fraction
 from aiamplitudes_common_public.download_data import relpath
 
-B_number= [1, 3, 6, 12, 24, 45, 85, 155, 279, 490, 854 ] # dim of back space at each weight
-F_number= [1, 3, 9, 21, 48, 108, 242, 540, 1212, None ] # dim of front space at each weight
+# Shared process-local caches. Keys include the source file, so different bases
+# at the same weight never share a dimension by accident.
+_basis_cache = {}
+basis_sizes = {}
+_relation_cache = {}
+relation_counts = {}
+_basis_cache_clearers = []
 
-NB_rels= [0, 3, 12, 24, 48, 99, 185, 355, 651, 1184, 2086 ] # number of back-space relations
-NF_rels= [0, 3, 9, 33, 78, 180, 406, 912, 2079, None] # number of front-space relations
+
+class _BasisDimensions:
+    """Weight-indexed view of the selected basis's cached dimensions."""
+
+    def __init__(self, space, rp):
+        self.space = space
+        self.rp = rp
+        self._sizes = {}
+
+    def __getitem__(self, weight):
+        if not isinstance(weight, Integral) or isinstance(weight, bool) or weight < 0:
+            raise ValueError("weight must be a nonnegative integer")
+        if weight not in self._sizes:
+            from aiamplitudes_common_public import basis_size
+            self._sizes[weight] = basis_size(weight, self.space, self.rp)
+        return self._sizes[weight]
+
+
+F_number = _BasisDimensions('front', 'R')
+B_number = _BasisDimensions('back', 'R')
+F_perm_number = _BasisDimensions('front', 'P')
+B_perm_number = _BasisDimensions('back', 'P')
+
+
+class _RelationCounts:
+    """Weight-indexed view of the selected restrictive relation counts."""
+
+    def __init__(self, space):
+        self.space = space
+        self._counts = {}
+
+    def __getitem__(self, weight):
+        if not isinstance(weight, Integral) or isinstance(weight, bool) or weight < 0:
+            raise ValueError("weight must be a nonnegative integer")
+        if weight not in self._counts:
+            from aiamplitudes_common_public import relation_count
+            self._counts[weight] = relation_count(weight, self.space)
+        return self._counts[weight]
+
+
+NF_rels = _RelationCounts('front')
+NB_rels = _RelationCounts('back')
+
+
+def clear_basis_cache():
+    """Forget bases, relations, their counts, and derived data after file changes."""
+    _basis_cache.clear()
+    basis_sizes.clear()
+    _relation_cache.clear()
+    relation_counts.clear()
+    for counts in (NF_rels, NB_rels):
+        counts._counts.clear()
+    for dimensions in (F_number, B_number, F_perm_number, B_perm_number):
+        dimensions._sizes.clear()
+    _header_cache.clear()
+    _preload_cache.clear()
+    for clear in _basis_cache_clearers:
+        clear()
+
+
+def _basis_filepath(prefix):
+    return os.path.abspath(os.path.join(relpath, os.fspath(prefix)))
 
 _header_cache = {}
 
-def _parse_file_header(filepath):
-    """Parse fin_rels/init_rels and fin_list/init_list from a multifinal/multiinitial file header.
+def _parse_file_header(filepath, kind):
+    """Parse the 'init' or 'fin' relations and basis names from a file header.
 
     Returns (relnames, spacenames) dicts keyed by weight (1-indexed).
     """
-    if filepath in _header_cache:
-        return _header_cache[filepath]
+    cache_key = (filepath, kind)
+    if cache_key in _header_cache:
+        return _header_cache[cache_key]
 
     relnames = {}
     spacenames = {}
@@ -51,7 +119,7 @@ def _parse_file_header(filepath):
         full = f.read()
 
     # Parse fin_rels / init_rels: list of label names
-    m = re.search(r'(?:fin_rels|init_rels)\s*:=\s*\[([^\]]+)\]', full)
+    m = re.search(rf'{kind}_rels\s*:=\s*\[([^\]]+)\]', full)
     if m:
         rels_list = [s.strip() for s in m.group(1).split(',') if s.strip()]
         for i, name in enumerate(rels_list):
@@ -59,33 +127,49 @@ def _parse_file_header(filepath):
 
     # Parse fin_list / init_list entries: fin_list[w] := labelname :
     # Skip commented-out lines (preceded by # on the same line)
-    for m in re.finditer(r'(?:fin_list|init_list)\[(\d+)\]\s*:=\s*(\w+)', full):
+    for m in re.finditer(rf'{kind}_list\[(\d+)\]\s*:=\s*(\w+)', full):
         line_start = full.rfind('\n', 0, m.start()) + 1
         if full[line_start:m.start()].lstrip().startswith('#'):
             continue
         w = int(m.group(1))
         spacenames[w] = m.group(2)
 
+    # Older multiinitial/multifinal files omit some or all metadata headers.
+    # Discover their canonical section labels; numeric suffixes are names, not
+    # trusted dimensions/counts. Explicit metadata above remains authoritative.
+    stems = ("single", "double", "triple", "quad", "quint", "hex", "hept",
+             "oct", "non", "dec")
+    prefix = "i" if kind == "init" else ""
+    section = re.compile(
+        rf"^\s*{prefix}({'|'.join(stems)})(indep|rels)\d+\s*:=", re.MULTILINE
+    )
+    for match in section.finditer(full):
+        weight = stems.index(match.group(1)) + 1
+        label = match.group(0).split(":=", 1)[0].strip()
+        names = spacenames if match.group(2) == "indep" else relnames
+        if weight not in names:
+            names[weight] = label
+
     # Only keep relnames for weights that have a corresponding spacenames entry
     relnames = {w: v for w, v in relnames.items() if w in spacenames}
 
-    _header_cache[filepath] = (relnames, spacenames)
+    _header_cache[cache_key] = (relnames, spacenames)
     return relnames, spacenames
 
 def _get_brelnames(prefix):
-    relnames, _ = _parse_file_header(f'{relpath}/{prefix}')
+    relnames, _ = _parse_file_header(_basis_filepath(prefix), 'fin')
     return relnames
 
 def _get_bspacenames(prefix):
-    _, spacenames = _parse_file_header(f'{relpath}/{prefix}')
+    _, spacenames = _parse_file_header(_basis_filepath(prefix), 'fin')
     return spacenames
 
 def _get_frelnames(prefix):
-    relnames, _ = _parse_file_header(f'{relpath}/{prefix}')
+    relnames, _ = _parse_file_header(_basis_filepath(prefix), 'init')
     return relnames
 
 def _get_fspacenames(prefix):
-    _, spacenames = _parse_file_header(f'{relpath}/{prefix}')
+    _, spacenames = _parse_file_header(_basis_filepath(prefix), 'init')
     return spacenames
 
 # Legacy hardcoded dicts (kept for backward compat with w=7 front-space split)
@@ -107,8 +191,8 @@ def get_perm_fspace(w, prefix='frontspace'):
       basedict: {'FP_w_i': {letter_string: coefficient, ...}, ...}
       flipdict: {letter_string: {'FP_w_i': coefficient, ...}, ...} (reverse lookup)
     """
-    assert os.path.isfile(f'{relpath}/{prefix}')
-    mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}','frontspace',w)))
+    assert os.path.isfile(_basis_filepath(prefix))
+    mystr = ''.join(str.split(readSymb(_basis_filepath(prefix),'frontspace',w)))
     newstr = re.split(r":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
     basedict = {f'FP_{w}_{i+1}': SB_to_dict_fraction(el) for i, el in enumerate(dev)}
@@ -121,8 +205,8 @@ def get_perm_fspace(w, prefix='frontspace'):
 
 def get_perm_bspace(w, prefix = 'backspace'):
     """Load the permissive back-space basis at weight w. Returns (basedict, flipdict)."""
-    assert os.path.isfile(f'{relpath}/{prefix}')
-    mystr = ''.join(str.split(readSymb(f'{relpath}/{prefix}', 'backspace', w)))
+    assert os.path.isfile(_basis_filepath(prefix))
+    mystr = ''.join(str.split(readSymb(_basis_filepath(prefix), 'backspace', w)))
     newstr = re.split(r":=|\[|\]", mystr)[4]
     dev = [elem + ")" if elem[-1] != ")" else elem for elem in newstr.split("),") if elem]
     basedict = {f'BP_{w}_{i+1}': SB_to_dict_fraction(el) for i, el in enumerate(dev)}
@@ -140,11 +224,11 @@ def get_rest_bspace(w, prefix = 'phi2multifinal_E'):
       flip: {'BR_w_i': letter_string, ...} (basis name -> letters)
       myd: {letter_string: 'BR_w_i', ...} (letters -> basis name)
     """
-    assert os.path.isfile(f'{relpath}/{prefix}')
+    assert os.path.isfile(_basis_filepath(prefix))
     spacenames = _get_bspacenames(prefix)
     if w not in spacenames:
         raise KeyError(f"Weight {w} not available in '{prefix}' (max: {max(spacenames.keys())})")
-    res=readSymb(f'{relpath}/{prefix}',str(spacenames[w]))
+    res=readSymb(_basis_filepath(prefix),str(spacenames[w]))
     if not res.strip():
         raise ValueError(
             f"Weight {w} is declared in '{prefix}' (label '{spacenames[w]}') but no matching "
@@ -161,11 +245,11 @@ def get_rest_fspace(w, prefix='multiinitial_E'):
 
     Returns (flip, myd) with the same structure as get_rest_bspace but using FR_ names.
     """
-    assert os.path.isfile(f'{relpath}/{prefix}')
+    assert os.path.isfile(_basis_filepath(prefix))
     spacenames = _get_fspacenames(prefix)
     if w not in spacenames:
         raise KeyError(f"Weight {w} not available in '{prefix}' (max: {max(spacenames.keys())})")
-    res=readSymb(f'{relpath}/{prefix}',str(spacenames[w]))
+    res=readSymb(_basis_filepath(prefix),str(spacenames[w]))
     if not res.strip():
         raise ValueError(
             f"Weight {w} is declared in '{prefix}' (label '{spacenames[w]}') but no matching "
@@ -238,7 +322,13 @@ def getFrel_eqs(f, w, prefix='multiinitial_E'):
     relnames = _get_frelnames(prefix)
     if w not in relnames and not isinstance(frelnames.get(w), dict):
         raise KeyError(f"Weight {w} not available in '{prefix}' (max: {max(relnames.keys())})")
-    # Override for known split case (label in header doesn't exist as a data block)
+    # Honor the selected file's declaration, including custom weight-7 bases.
+    # Older files may only contain the split zero/nonzero blocks below.
+    if w in relnames:
+        f.seek(0)
+        res = readFile(f, str(relnames[w]) + ' :=')
+        if res.strip():
+            return _resolve_ops(_parse_rel_block(res), f)
     if isinstance(frelnames.get(w), dict):
         zeros = str(frelnames[w]['zero'])
         nonzeros = str(frelnames[w]['nonzero'])
@@ -255,15 +345,11 @@ def getFrel_eqs(f, w, prefix='multiinitial_E'):
         out_nonzero = _parse_rel_block(res_nonzero)
         out = _resolve_ops(out_zero + out_nonzero, f)
     else:
-        res = readFile(f, str(relnames[w]) + ' :=')
-        if not res.strip():
-            raise ValueError(
-                f"Weight {w} is declared in '{prefix}' (label '{relnames[w]}') but no matching "
-                f"relation block was found in the file body -- it may be stored under a "
-                f"different or compressed label."
-            )
-        out = _parse_rel_block(res)
-        out = _resolve_ops(out, f)
+        raise ValueError(
+            f"Weight {w} is declared in '{prefix}' (label '{relnames[w]}') but no matching "
+            f"relation block was found in the file body -- it may be stored under a "
+            f"different or compressed label."
+        )
     return out
 
 def rel_to_dict(relstring, bspace=True):
@@ -302,17 +388,50 @@ def rel_to_dict(relstring, bspace=True):
 
     return {newstring[0]: reldict}
 
-def get_brels(w,relpath, prefix='phi2multifinal_E'):
-    """Load all back-space relations at weight w as a flat {dependent: {indep: coef}} dict."""
-    assert w > 0
-    with open(f'{relpath}/{prefix}', 'rt') as f:
-        return {k: v for j in getBrel_eqs(f, w, prefix=prefix) for k, v in rel_to_dict(j).items() if k}
+def _relation_key(w, space, directory, prefix):
+    if not isinstance(w, Integral) or isinstance(w, bool) or w < 0:
+        raise ValueError("weight must be a nonnegative integer")
+    if space not in {'front', 'back'}:
+        raise ValueError("space must be 'front' or 'back'")
+    filepath = os.path.abspath(os.path.join(directory, os.fspath(prefix)))
+    return space, filepath, int(w)
 
-def get_frels(w,relpath, prefix='multiinitial_E'):
-    """Load all front-space relations at weight w as a flat {dependent: {indep: coef}} dict."""
-    assert (w > 0)
-    with open(f'{relpath}/{prefix}', 'rt') as f:
-        return {k: v for j in getFrel_eqs(f, w, prefix=prefix) for k, v in rel_to_dict(j, False).items() if k}
+
+def _load_relations(key):
+    if key not in _relation_cache:
+        space, filepath, w = key
+        if w == 0:
+            relations = {}
+        else:
+            reader = getFrel_eqs if space == 'front' else getBrel_eqs
+            with open(filepath, 'rt') as stream:
+                relations = {
+                    word: expansion
+                    for equation in reader(stream, w, prefix=filepath)
+                    for word, expansion in rel_to_dict(equation, space == 'back').items()
+                    if word
+                }
+        relation_counts[key] = len(relations)
+        _relation_cache[key] = relations
+    return _relation_cache[key]
+
+
+def _relation_count(w, space, directory, prefix):
+    key = _relation_key(w, space, directory, prefix)
+    if key not in relation_counts:
+        _load_relations(key)
+    return relation_counts[key]
+
+
+def get_brels(w, relpath, prefix='phi2multifinal_E'):
+    """Load cached back relations and record their count. Treat the dict as read-only."""
+    return _load_relations(_relation_key(w, 'back', relpath, prefix))
+
+
+def get_frels(w, relpath, prefix='multiinitial_E'):
+    """Load cached front relations and record their count. Treat the dict as read-only."""
+    return _load_relations(_relation_key(w, 'front', relpath, prefix))
+
 
 def all_perm_bspaces(relpath):
     perm_bspace, perm_bspace_keysfirst = {}, {}
@@ -371,38 +490,28 @@ def expand_elem(key, opt="all", loaded=None):
     return Symb(exp_dict)
 
 def _load_fspace(fForm, fweight):
-    """Load front-space dict for a given form."""
-    loaded = {}
-    if fForm == 'P':
-        loaded["fspace"], loaded["fspace_flip"] = get_perm_fspace(fweight)
-    elif fForm == 'R':
-        loaded["fspace"], loaded["fspace_flip"] = get_rest_fspace(fweight)
-        loaded["f_rels"] = get_frels(fweight, relpath)
-    elif fForm == 'PD':
-        from aiamplitudes_common_public import fspace
-        loaded["fspace"] = fspace(fweight, 'PD')
-        loaded["fspace_flip"] = None
-    else:
-        raise ValueError
+    """Load the selected front basis and its associated relations."""
+    from aiamplitudes_common_public import fspace, fspace_flip, fr_rels, basis_size
+    loaded = {
+        "fspace": fspace(fweight, fForm),
+        "fspace_flip": fspace_flip(fweight, fForm),
+        "fspace_size": basis_size(fweight, 'front', fForm),
+    }
+    if fForm == 'R' and fweight > 0:
+        loaded["f_rels"] = fr_rels(fweight)
     return loaded
 
 
 def _load_bspace(bForm, bweight, optrace='phi2'):
-    """Load back-space dict for a given form."""
-    loaded = {}
-    if bForm == 'P':
-        loaded["bspace"], loaded["bspace_flip"] = get_perm_bspace(bweight)
-    elif bForm == 'R':
-        from aiamplitudes_common_public import bspace, bspace_flip, br_rels
-        loaded["bspace"] = bspace(bweight, 'R', optrace=optrace)
-        loaded["bspace_flip"] = bspace_flip(bweight, 'R', optrace=optrace)
+    """Load the selected back basis and its associated relations."""
+    from aiamplitudes_common_public import bspace, bspace_flip, br_rels, basis_size
+    loaded = {
+        "bspace": bspace(bweight, bForm, optrace=optrace),
+        "bspace_flip": bspace_flip(bweight, bForm, optrace=optrace),
+        "bspace_size": basis_size(bweight, 'back', bForm, optrace=optrace),
+    }
+    if bForm == 'R' and bweight > 0:
         loaded["b_rels"] = br_rels(bweight, optrace=optrace)
-    elif bForm == 'PD':
-        from aiamplitudes_common_public import bspace
-        loaded["bspace"] = bspace(bweight, 'PD', optrace=optrace)
-        loaded["bspace_flip"] = None
-    else:
-        raise ValueError
     return loaded
 
 
@@ -587,7 +696,7 @@ def get_perm_fspace_wt6(filename='wt6_242_indep_symbols'):
     Returns:
         List of 242 dicts, each mapping letter-strings to Fraction coefficients.
     """
-    filepath = f'{relpath}/{filename}'
+    filepath = _basis_filepath(filename)
     with open(filepath, 'rt') as f:
         content = f.read()
 

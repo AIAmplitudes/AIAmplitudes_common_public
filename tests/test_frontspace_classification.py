@@ -10,7 +10,7 @@ from aiamplitudes_common_public import (
     fr_rels,
     fspace,
 )
-from aiamplitudes_common_public.fbspaces import F_number, NF_rels
+from aiamplitudes_common_public.fbspaces import F_number, NF_rels, NB_rels
 
 
 def test_frontspace_classification_at_weight_two():
@@ -60,9 +60,17 @@ def test_back_dependents_match_relations_and_are_disjoint_from_basis_words():
 
 
 def test_front_dimension_tables_match_available_data():
-    for weight in range(1, 8):
+    for weight in range(1, 9):
         assert F_number[weight] == len(fspace(weight, "R"))
-        assert NF_rels[weight] == len(fr_rels(weight))
 
-    assert F_number[8] is None
-    assert NF_rels[8] is None
+
+def test_front_relation_counts_match_available_data():
+    for weight in range(1, 8):
+        assert NF_rels[weight] == len(fr_rels(weight))
+    assert NF_rels[0] == 0
+
+
+def test_back_relation_counts_match_available_data():
+    for weight in range(1, 5):
+        assert NB_rels[weight] == len(br_rels(weight))
+    assert NB_rels[0] == 0
